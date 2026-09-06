@@ -6,14 +6,21 @@ import 'package:flutter/material.dart';
 /// but not their symptoms, relievers, triggers or red flags, so almost
 /// everything downstream branches on this.
 enum EpisodeKind {
-  migraine('migraine', 'Migraine', Icons.psychology_alt_outlined),
-  reflux('reflux', 'Reflux', Icons.local_fire_department_outlined);
+  migraine('migraine', 'Migraine', 'a migraine', Icons.psychology_alt_outlined),
+  reflux('reflux', 'Reflux', 'reflux', Icons.local_fire_department_outlined);
 
-  const EpisodeKind(this.code, this.label, this.icon);
+  const EpisodeKind(this.code, this.label, this.inSentence, this.icon);
 
   /// Persisted value. Never store [name] — a rename would silently orphan rows.
   final String code;
   final String label;
+
+  /// How the condition reads mid-sentence, with its article if it takes
+  /// one: "you had **a migraine** on 4 of..." but "you had **reflux** on
+  /// 4 of...". Lowercasing [label] and prefixing "a" produces "a reflux",
+  /// which the dump tool caught before anyone read it on a screen.
+  final String inSentence;
+
   final IconData icon;
 
   static EpisodeKind fromCode(String code) => EpisodeKind.values.firstWhere(

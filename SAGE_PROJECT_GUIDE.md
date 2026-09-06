@@ -594,8 +594,59 @@ Decide before the phase that needs them:
 | 0 — Foundation | **Built.** Branch `phase-0-foundation`. |
 | 1 — Logging loop | **Built.** Branch `phase-1-logging`. |
 | 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
-| 3 — Correlation engine | Not started |
+| 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 3 added
+
+- `lib/data/models/daily_log.dart` + its repository — one row per local day,
+  every measure nullable.
+- `lib/data/insights/day_conditions.dart` — the yes/no day properties the
+  engine tests, as SQL `guard`/`predicate` pairs.
+- `lib/data/insights/insights_service.dart` — four rules: day-condition
+  concentration, weekday clustering, frequency against the person's own
+  baseline, and reliever track record.
+- `DailyLogScreen`, `PatternsScreen`, and `test/tools/dump_insights.dart`.
+
+**Null is the load-bearing part of this phase.** A blank measure means "not
+recorded", and every condition's SQL `guard` is a NOT NULL check on the one
+column it reads. A day where sleep was logged but stress was not is evidence
+about sleep and no evidence at all about stress. If blanks were read as
+"condition false" — which is what a `DEFAULT 0` would have produced — every
+unlogged day would join the baseline and the rules would find patterns in
+people's forgetfulness. There is a test for exactly this.
+
+Gates, all deliberately tighter than Sellora's equivalents:
+
+| Gate | Value | Why |
+|---|---|---|
+| `minEpisodes` | 8 | Floor below which every rule is arithmetic on noise |
+| `minLoggedDays` | 14 | Day comparisons need day coverage |
+| `minDaysEachSide` | 5 | Both sides, or it compares a sample to an anecdote |
+| `minEpisodesOnCondition` | 3 | Cannot fire off one bad week |
+| `minLift` | 2.0 | Twice as often, not 10% more |
+| `minEpisodesForWeekday` | 12 over 12 weeks | Three Tuesdays is not a pattern |
+| `minRatedRelieverAttempts` | 4 | Framed as a finding, so stricter than Tier 1's 3 |
+
+Two subtleties worth not relearning:
+
+- **A zero baseline needs an absolute floor as well as a ratio.** "3 of 5 days
+  against 0 of 30" has infinite lift, which is why the ratio alone cannot be
+  the test. The condition side must also clear 0.4.
+- **Weekday rates divide by how many times that weekday actually occurred** in
+  the window, not by a flat count — otherwise whichever weekday came round one
+  time fewer is penalised.
+
+**No insight is ever an alarm, and none may tell anyone to seek care.** Urgency
+belongs to Tier 0, evaluated deterministically at the moment it matters; a card
+someone reads next week is the wrong instrument for it. `InsightStrength` is
+evidence, not urgency, and is carried by weight rather than an alarming colour.
+There is a test asserting no finding's text matches emergency language.
+
+Run `flutter test test/tools/dump_insights.dart` after touching a rule. A gate
+can be right while the sentence built on it is unreadable, and only one of
+those is caught by a test — that tool is how "You had **a reflux** on 11 of the
+23 days" was found before anyone saw it on a screen.
 
 ### What Phase 2 added
 

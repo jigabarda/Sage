@@ -3,7 +3,9 @@ import 'package:go_router/go_router.dart';
 
 import 'constants/episode_kind.dart';
 import 'features/episodes/episode_editor_screen.dart';
+import 'features/daily/daily_log_screen.dart';
 import 'features/guidance/guidance_screen.dart';
+import 'features/patterns/patterns_screen.dart';
 import 'features/history/history_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'features/shell/placeholder_screen.dart';
@@ -55,6 +57,11 @@ GoRouter buildRouter() {
         ),
       ),
       GoRoute(
+        path: '/daily',
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const DailyLogScreen(),
+      ),
+      GoRoute(
         path: '/episode/new',
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const EpisodeEditorScreen(),
@@ -85,13 +92,7 @@ GoRouter buildRouter() {
             routes: [
               GoRoute(
                 path: '/patterns',
-                builder: (_, _) => const PlaceholderScreen(
-                  title: 'Patterns',
-                  phase: 'Phase 3',
-                  summary:
-                      'What the record shows, as arithmetic over your own '
-                      'rows. Each finding states the numbers it came from.',
-                ),
+                builder: (_, _) => const PatternsScreen(),
               ),
             ],
           ),

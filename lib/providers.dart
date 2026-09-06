@@ -4,8 +4,13 @@ import 'package:sqflite/sqflite.dart';
 
 import 'constants/episode_kind.dart';
 import 'data/models/episode.dart';
+import 'core/dates.dart';
 import 'data/guidance/guidance.dart';
 import 'data/guidance/guidance_service.dart';
+import 'data/insights/insight.dart';
+import 'data/insights/insights_service.dart';
+import 'data/models/daily_log.dart';
+import 'data/repositories/daily_log_repository.dart';
 import 'data/repositories/episode_repository.dart';
 import 'data/triage/triage_service.dart';
 
@@ -69,6 +74,10 @@ void invalidateEpisodeData(WidgetRef ref) {
   // Guidance reads reliever ratings and closed-episode durations, so a
   // write can change what its gates allow it to say.
   ref.invalidate(guidanceProvider);
+  // Every correlation rule counts episodes, so any episode write can
+  // change which gates pass.
+  ref.invalidate(insightsProvider);
+  ref.invalidate(insightsProgressProvider);
 }
 
 /// Tier 0. Held as a plain provider because `evaluate` is pure and synchronous
@@ -89,3 +98,39 @@ final guidanceProvider = FutureProvider.family<Guidance, EpisodeKind>((
 ) {
   return ref.watch(guidanceServiceProvider).forKind(kind);
 });
+
+final dailyLogRepositoryProvider = Provider<DailyLogRepository>(
+  (ref) => DailyLogRepository(ref.watch(databaseProvider)),
+);
+
+final dailyLogForDayProvider = FutureProvider.family<DailyLog, LocalDay>((
+  ref,
+  day,
+) {
+  return ref.watch(dailyLogRepositoryProvider).forDay(day);
+});
+
+final insightsServiceProvider = Provider<InsightsService>(
+  (ref) => InsightsService(ref.watch(databaseProvider)),
+);
+
+/// Tier 2. Findings that cleared their evidence gates, strongest first.
+final insightsProvider = FutureProvider<List<Insight>>(
+  (ref) => ref.watch(insightsServiceProvider).all(),
+);
+
+/// What is still missing, for the empty state. An empty patterns screen with
+/// no explanation reads as broken.
+final insightsProgressProvider = FutureProvider<String>(
+  (ref) => ref.watch(insightsServiceProvider).progressNote(),
+);
+
+/// Call after writing a daily log.
+///
+/// Insights read both tables, so an episode write refreshes them too — see
+/// [invalidateEpisodeData].
+void invalidateDailyData(WidgetRef ref) {
+  ref.invalidate(dailyLogForDayProvider);
+  ref.invalidate(insightsProvider);
+  ref.invalidate(insightsProgressProvider);
+}
