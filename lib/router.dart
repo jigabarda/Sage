@@ -6,9 +6,9 @@ import 'features/episodes/episode_editor_screen.dart';
 import 'features/daily/daily_log_screen.dart';
 import 'features/guidance/guidance_screen.dart';
 import 'features/patterns/patterns_screen.dart';
+import 'features/settings/settings_screen.dart';
 import 'features/history/history_screen.dart';
 import 'features/shell/app_shell.dart';
-import 'features/shell/placeholder_screen.dart';
 import 'features/today/today_screen.dart';
 import 'features/triage/escalation_screen.dart';
 import 'features/triage/safety_check_screen.dart';
@@ -100,11 +100,7 @@ GoRouter buildRouter() {
             routes: [
               GoRoute(
                 path: '/settings',
-                builder: (_, _) => const PlaceholderScreen(
-                  title: 'Settings',
-                  phase: 'Phase 1',
-                  summary: 'Appearance, medications, and the doctor export.',
-                ),
+                builder: (_, _) => const SettingsScreen(),
               ),
             ],
           ),

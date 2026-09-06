@@ -68,8 +68,17 @@ The record is the product; conversation is an interface on top of it.
       build/app/intermediates/merged_manifest/release/*/AndroidManifest.xml
     ```
 
-    Expect exactly one line, `com.sage.mobile.DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION`
-    — an internal, self-scoped Flutter entry, not a capability.
+    As of Phase 5 the expected set is exactly:
+
+    | Permission | Source |
+    |---|---|
+    | `DYNAMIC_RECEIVER_NOT_EXPORTED_PERMISSION` | Flutter internal, self-scoped, not a capability |
+    | `POST_NOTIFICATIONS` | `flutter_local_notifications`, declared by the plugin |
+    | `VIBRATE` | `flutter_local_notifications`, declared by the plugin |
+    | `RECEIVE_BOOT_COMPLETED` | Declared by us, so schedules survive a reboot |
+
+    Anything outside that table is new and wants explaining. `INTERNET` is
+    never acceptable.
 
     **Debug builds legitimately carry `INTERNET`** and that is not a violation.
     Flutter ships `android/app/src/debug/AndroidManifest.xml` declaring it so
@@ -597,6 +606,52 @@ Decide before the phase that needs them:
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
 
+### What Phase 5 added
+
+- `lib/data/notifications/notification_policy.dart` — pure decisions: when to
+  schedule, and what each notification says.
+- `lib/data/notifications/notification_service.dart` — the plugin plumbing.
+- A real `SettingsScreen`, replacing the placeholder: appearance, reminders,
+  and a plain statement of where the data lives.
+
+**Policy is split from plumbing** because the plugin is a platform channel that
+cannot run in a test. Everything worth getting right — *whether* to send and
+*what it says* — is pure and covered; only the delivery is untested.
+
+Four rules encoded:
+
+- **A notification with nothing to say is not sent.** Every policy method can
+  return null, and null means silence. A weekly ping reading "no patterns yet"
+  teaches someone to swipe the next one away without reading it, and the one
+  after that is the one that mattered. `info`-strength findings do not qualify.
+- **All three reminders are off by default.** An app that sends things nobody
+  asked for gets its notifications disabled wholesale.
+- **The permission is requested when a toggle is switched on, never at
+  launch.** Android gives one good chance: asked before any value is shown it
+  gets denied, and a second denial is permanent until the user digs into system
+  settings.
+- **Nothing may tell anyone to seek care.** Same rule as the insights, and more
+  so — a notification can arrive days late and be read on a lock screen. There
+  is a test.
+
+Three Android details worth not rediscovering:
+
+- **Core library desugaring is required** by `flutter_local_notifications`, and
+  the build fails without it. Enabled in `android/app/build.gradle.kts`.
+- **Scheduling is inexact on purpose.** Exact alarms need
+  `SCHEDULE_EXACT_ALARM`, which on Android 14 is a separate user grant meant
+  for alarm clocks. A summary that lands at 19:14 instead of 19:00 is the same
+  summary.
+- **`RECEIVE_BOOT_COMPLETED` and the boot receiver are declared by us**, not by
+  the plugin. Without them every schedule is silently lost on the first reboot
+  — which is exactly the case the weekly summary exists for, someone who has
+  stopped opening the app.
+
+Notifications post with `NotificationVisibility.private`, so the body is hidden
+on a secure lock screen. "You had a migraine on 10 of the 20 days you slept
+under 6 hours" is health data, and a lock screen is read by whoever picks the
+phone up.
+
 ### What Phase 3 added
 
 - `lib/data/models/daily_log.dart` + its repository — one row per local day,
@@ -720,7 +775,7 @@ Three rules encoded in code that are easy to undo by accident:
 - **"Last time, X helped" is one remembered fact, and the wording says so.**
   Aggregate claims about what usually helps are a Phase 3 rule with an
   evidence gate that states its numbers.
-| 5 — Notifications | Not started |
+| 5 — Notifications | **Built.** Branch `phase-5-notifications`. |
 | 6 — Doctor export | Not started |
 | 7 — Polish and release | Not started |
 

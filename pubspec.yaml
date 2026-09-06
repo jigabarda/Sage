@@ -17,6 +17,12 @@ dependencies:
   path_provider: ^2.1.5
   shared_preferences: ^2.3.3
   sqflite: ^2.4.1
+  # Scheduled on-device notifications. No FCM, no push infrastructure, no
+  # server - the whole point is that a reminder about your own log never
+  # leaves the device.
+  flutter_local_notifications: ^18.0.1
+  timezone: ^0.10.0
+  flutter_timezone: ^4.1.0
 
 dev_dependencies:
   flutter_test:
