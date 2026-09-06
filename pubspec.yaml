@@ -23,6 +23,10 @@ dependencies:
   flutter_local_notifications: ^18.0.1
   timezone: ^0.10.0
   flutter_timezone: ^4.1.0
+  # Hands the export to whatever the user picks - email, a messaging app, a
+  # file manager. The app never sends anything itself and has no permission
+  # to; the share sheet is the user doing it deliberately.
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:

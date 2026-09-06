@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/brand_palette.dart';
 import '../../core/sage_tokens.dart';
@@ -22,6 +23,17 @@ class SettingsScreen extends ConsumerWidget {
           const _Appearance(),
           Gap.h32,
           const _Notifications(),
+          Gap.h32,
+          SageSection(
+            title: 'Share with a doctor',
+            hint:
+                'A plain-text summary of your log, with the patterns and '
+                'anything the safety check flagged.',
+            child: OutlinedButton(
+              onPressed: () => context.push('/export'),
+              child: const Text('Build the export'),
+            ),
+          ),
           Gap.h32,
           SageSection(
             title: 'Your data',

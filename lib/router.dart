@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import 'constants/episode_kind.dart';
 import 'features/episodes/episode_editor_screen.dart';
+import 'features/export/export_screen.dart';
 import 'features/daily/daily_log_screen.dart';
 import 'features/guidance/guidance_screen.dart';
 import 'features/patterns/patterns_screen.dart';
@@ -55,6 +56,11 @@ GoRouter buildRouter() {
         builder: (_, state) => GuidanceScreen(
           kind: EpisodeKind.fromCode(state.pathParameters['kind']!),
         ),
+      ),
+      GoRoute(
+        path: '/export',
+        parentNavigatorKey: _rootKey,
+        builder: (_, _) => const ExportScreen(),
       ),
       GoRoute(
         path: '/daily',
