@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A sage leaf, drawn as a vector so the icon needs no bitmap at any density.
+
+  Adaptive icons are 108x108dp with only the inner ~66dp guaranteed visible -
+  launchers mask the rest into whatever shape they use. The leaf is kept well
+  inside that, which is why it looks small against the full canvas here.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#E4EACF"
+        android:pathData="M54,28 C73,45 73,68 54,84 C35,68 35,45 54,28 Z" />
+    <path
+        android:strokeColor="#5A6E3A"
+        android:strokeWidth="2.5"
+        android:strokeLineCap="round"
+        android:pathData="M54,34 L54,80" />
+    <path
+        android:strokeColor="#5A6E3A"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:pathData="M54,52 L44,44 M54,52 L64,44 M54,66 L45,59 M54,66 L63,59" />
+</vector>

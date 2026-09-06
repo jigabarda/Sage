@@ -1,3 +1,23 @@
+import java.io.FileInputStream
+import java.util.Properties
+
+// Release signing is configured from android/key.properties, which is
+// gitignored and never committed. When it is absent the release build falls
+// back to the debug key so `flutter build apk --release` still works for
+// anyone who has just cloned this - it simply produces an APK that cannot
+// update an installed release build.
+//
+// To create the keystore, see SAGE_PROJECT_GUIDE.md -> Signing. BACK THE
+// KEYSTORE UP: losing it means the only way to install a newer version is to
+// uninstall first, which wipes the log.
+val keystorePropertiesFile = rootProject.file("key.properties")
+val keystoreProperties = Properties().apply {
+    if (keystorePropertiesFile.exists()) {
+        load(FileInputStream(keystorePropertiesFile))
+    }
+}
+val hasReleaseKey = keystorePropertiesFile.exists()
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
@@ -35,15 +55,29 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseKey) {
+                keyAlias = keystoreProperties["keyAlias"] as String
+                keyPassword = keystoreProperties["keyPassword"] as String
+                storeFile = file(keystoreProperties["storeFile"] as String)
+                storePassword = keystoreProperties["storePassword"] as String
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            //
-            // Before distributing an APK to anyone, generate a keystore and
-            // BACK IT UP. Losing it means users have to uninstall to update,
-            // which wipes their log.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                signingConfigs.getByName("debug")
+            }
+            // No minification. The app is sideloaded rather than published, so
+            // there is no download size to defend, and an obfuscated stack
+            // trace from your own phone is worse than a large APK.
+            isMinifyEnabled = false
+            isShrinkResources = false
         }
     }
 }

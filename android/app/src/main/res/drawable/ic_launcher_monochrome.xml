@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 13+ themed icons. The system tints this to match the wallpaper, so it
+  must be a flat silhouette - any colour here is discarded.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,28 C73,45 73,68 54,84 C35,68 35,45 54,28 Z" />
+</vector>
