@@ -4,7 +4,10 @@ import 'package:sqflite/sqflite.dart';
 
 import 'constants/episode_kind.dart';
 import 'data/models/episode.dart';
+import 'data/guidance/guidance.dart';
+import 'data/guidance/guidance_service.dart';
 import 'data/repositories/episode_repository.dart';
+import 'data/triage/triage_service.dart';
 
 /// Both are opened once in `main.dart` and injected as overrides, so no screen
 /// ever awaits a database handle mid-build. A provider that throws until
@@ -63,4 +66,26 @@ void invalidateEpisodeData(WidgetRef ref) {
   ref.invalidate(ongoingEpisodesProvider);
   ref.invalidate(lastHelpedProvider);
   ref.invalidate(episodeDetailProvider);
+  // Guidance reads reliever ratings and closed-episode durations, so a
+  // write can change what its gates allow it to say.
+  ref.invalidate(guidanceProvider);
 }
+
+/// Tier 0. Held as a plain provider because `evaluate` is pure and synchronous
+/// — nothing about the triage decision may depend on I/O that could fail.
+final triageServiceProvider = Provider<TriageService>(
+  (ref) => TriageService(ref.watch(databaseProvider)),
+);
+
+final guidanceServiceProvider = Provider<GuidanceService>(
+  (ref) => GuidanceService(ref.watch(databaseProvider)),
+);
+
+/// Tier 1 for one condition: fixed steps plus any personal note that clears
+/// its evidence gate.
+final guidanceProvider = FutureProvider.family<Guidance, EpisodeKind>((
+  ref,
+  kind,
+) {
+  return ref.watch(guidanceServiceProvider).forKind(kind);
+});
