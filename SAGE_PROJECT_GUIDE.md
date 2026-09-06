@@ -592,10 +592,43 @@ Decide before the phase that needs them:
 | Phase | State |
 |---|---|
 | 0 — Foundation | **Built.** Branch `phase-0-foundation`. |
-| 1 — Logging loop | Not started |
+| 1 — Logging loop | **Built.** Branch `phase-1-logging`. |
 | 2 — Safety and in-attack help | Not started |
 | 3 — Correlation engine | Not started |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 1 added
+
+- `lib/constants/` — episode kinds, symptoms, relievers and triggers as Dart
+  constants, scoped per condition. **Codes are permanent once shipped**; a
+  rename orphans every row that used it. Labels are free to be reworded.
+- `lib/data/repositories/episode_repository.dart` — the only place episodes are
+  written. Two invariants live there rather than at call sites: `started_day`
+  is always derived from `started_at` (so editing a start time moves its day
+  with it), and an episode plus its children is one transaction.
+- `TodayScreen` — one large tap per condition records an accurate start time
+  and nothing else. Severity defaults to `Severity.quickLogDefault` (5) and is
+  refined later; the point is that the *timestamp* is captured while the person
+  is in no state to fill in a form.
+- `EpisodeEditorScreen` — one screen for create and edit, so the two cannot
+  drift. Ten discrete severity targets rather than a slider: precise dragging
+  is exactly what a bad migraine takes away.
+- `HistoryScreen` — grouped by `started_day` as it renders.
+
+Three rules encoded in code that are easy to undo by accident:
+
+- **The editor never touches an inferred trigger.** A user-stated trigger is a
+  belief; an inferred one is arithmetic. `update` clears only
+  `source = 'user'` rows, and Phase 3 must read `daily_log` and inferred rows —
+  never the user's own attributions, or the rules will confirm whatever the
+  user already suspected and report it as a finding.
+- **An unrated reliever is not "no change".** `helped` is nullable and null
+  means unrated. Counting unrated attempts as neutral would drag every
+  reliever's score down, and the people least likely to go back and rate are
+  the ones having the worst episodes.
+- **"Last time, X helped" is one remembered fact, and the wording says so.**
+  Aggregate claims about what usually helps are a Phase 3 rule with an
+  evidence gate that states its numbers.
 | 5 — Notifications | Not started |
 | 6 — Doctor export | Not started |
 | 7 — Polish and release | Not started |
