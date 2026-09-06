@@ -58,8 +58,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
         SnackBar(
           content: Text('${kind.label} logged. Rest first.'),
           action: SnackBarAction(
-            label: 'Add detail',
-            onPressed: () => context.push('/episode/$id'),
+            label: 'What helps',
+            // Guidance, not the form. Mid-attack this is the more useful of
+            // the two, and it routes through the safety check.
+            onPressed: () => context.push('/safety/${kind.code}?episode=$id'),
           ),
           duration: const Duration(seconds: 6),
         ),
@@ -89,6 +91,8 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
                 episode: e,
                 onClose: () => _close(e),
                 onOpen: () => context.push('/episode/${e.id}'),
+                onGuidance: () =>
+                    context.push('/safety/${e.kind.code}?episode=${e.id}'),
               ),
               Gap.h12,
             ],
@@ -122,6 +126,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               child: TextButton(
                 onPressed: () => context.push('/episode/new'),
                 child: const Text('Log something that already passed'),
+              ),
+            ),
+            // Guidance without logging first. Someone who wants to know what
+            // to do should not have to create a row to find out, and the
+            // safety check gates this route the same as every other.
+            Center(
+              child: TextButton(
+                onPressed: () =>
+                    context.push('/safety/${EpisodeKind.migraine.code}'),
+                child: const Text('What helps, without logging it'),
               ),
             ),
           ],
@@ -188,11 +202,13 @@ class _OngoingCard extends StatelessWidget {
     required this.episode,
     required this.onClose,
     required this.onOpen,
+    required this.onGuidance,
   });
 
   final Episode episode;
   final VoidCallback onClose;
   final VoidCallback onOpen;
+  final VoidCallback onGuidance;
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +249,8 @@ class _OngoingCard extends StatelessWidget {
             ],
           ),
           Gap.h16,
+          FilledButton(onPressed: onGuidance, child: const Text('What helps')),
+          Gap.h8,
           Row(
             children: [
               Expanded(
@@ -243,7 +261,7 @@ class _OngoingCard extends StatelessWidget {
               ),
               Gap.w12,
               Expanded(
-                child: FilledButton(
+                child: OutlinedButton(
                   onPressed: onClose,
                   child: const Text('It stopped'),
                 ),

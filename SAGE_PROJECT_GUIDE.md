@@ -593,9 +593,49 @@ Decide before the phase that needs them:
 |---|---|
 | 0 — Foundation | **Built.** Branch `phase-0-foundation`. |
 | 1 — Logging loop | **Built.** Branch `phase-1-logging`. |
-| 2 — Safety and in-attack help | Not started |
+| 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
 | 3 — Correlation engine | Not started |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 2 added
+
+- `lib/data/triage/` — the red-flag set and `TriageService`. `evaluate` is pure
+  and synchronous, so nothing about the decision depends on I/O that could
+  fail, and it can be exercised exhaustively in tests.
+- `lib/data/guidance/` — fixed steps per condition, plus personal notes behind
+  evidence gates (3 rated reliever attempts at 60% helped; 3 closed episodes
+  for a duration).
+- `SafetyCheckScreen`, `EscalationScreen`, `GuidanceScreen`, all on the root
+  navigator so the tab bar cannot be used to step around the gate.
+
+**The check gates advice, not logging.** Today's one-tap logging stays ungated
+— the log is a fact, it costs nothing to be wrong about, and blocking it would
+push someone to not log at all. Advice is different: the moment the app says
+what to do about symptoms it owns whether that is right, and "lie down in a
+dark room" is actively harmful for a subarachnoid haemorrhage. So every route
+to guidance passes through the check, and `/guidance/:kind` is linked from
+nowhere else.
+
+Four rules encoded so they cannot quietly erode:
+
+- **A single tap escalates. There is no Submit.** A list of checkboxes with a
+  button underneath is a list someone can fill in and then put the phone down
+  without pressing anything.
+- **The escalation screen carries no self-care advice at all**, not even below
+  the fold, and offers no path onward to guidance. A helpful-looking suggestion
+  under the warning undoes the entire point of the gate.
+- **Urgency is routing, not scoring.** Emergency and urgent both stop advice;
+  they differ only in what the screen says to do. Collapsing them would either
+  send someone with unexplained weight loss to an ambulance, or send someone
+  with a thunderclap headache to make an appointment.
+- **An unknown flag code is ignored, but a missing one fails towards care.**
+  `evaluate` skips codes it does not recognise; `EscalationScreen` with an
+  unresolvable code still tells the person to contact a doctor.
+
+**Still outstanding:** the red-flag list has not been reviewed by a clinician.
+It follows the SNOOP framework for headache plus the standard upper-GI alarm
+features, and is adequate for the author's own use. Review it against a current
+clinical source before this APK goes to anyone else.
 
 ### What Phase 1 added
 
