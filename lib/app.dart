@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'core/brand_palette.dart';
 import 'core/sage_theme.dart';
 import 'core/theme_controller.dart';
+import 'providers.dart';
 import 'router.dart';
 
 class SageApp extends ConsumerStatefulWidget {
@@ -19,6 +20,18 @@ class _SageAppState extends ConsumerState<SageApp> {
   // navigation stack, which is how changing the accent used to bounce Sellora
   // back to the first tab.
   late final GoRouter _router = buildRouter();
+
+  @override
+  void initState() {
+    super.initState();
+    // Rebuilds the recurring schedule from current settings and current
+    // content, so the weekly summary reflects what the log says now rather
+    // than what it said whenever Settings was last opened. Fire and forget:
+    // nothing on screen depends on it, and it swallows its own failures.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(rearmNotificationsProvider.future).ignore();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {

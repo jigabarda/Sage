@@ -10,6 +10,8 @@ import 'data/guidance/guidance_service.dart';
 import 'data/insights/insight.dart';
 import 'data/insights/insights_service.dart';
 import 'data/models/daily_log.dart';
+import 'data/notifications/notification_policy.dart';
+import 'data/notifications/notification_service.dart';
 import 'data/repositories/daily_log_repository.dart';
 import 'data/repositories/episode_repository.dart';
 import 'data/triage/triage_service.dart';
@@ -134,3 +136,31 @@ void invalidateDailyData(WidgetRef ref) {
   ref.invalidate(insightsProvider);
   ref.invalidate(insightsProgressProvider);
 }
+
+/// Overridden in `main.dart`, where SharedPreferences is already open and the
+/// plugin has been initialised.
+final notificationServiceProvider = Provider<NotificationService>(
+  (ref) => throw StateError(
+    'notificationServiceProvider must be overridden in ProviderScope',
+  ),
+);
+
+/// Rebuilds the recurring schedule from current settings and current content.
+///
+/// Read as a future rather than watched, so it runs on demand: at startup, and
+/// after anything that changes what the weekly summary would say.
+final rearmNotificationsProvider = FutureProvider<void>((ref) async {
+  final service = ref.watch(notificationServiceProvider);
+  if (!service.settings.anyEnabled) {
+    await service.cancelAll();
+    return;
+  }
+
+  final insights = await ref.watch(insightsServiceProvider).all();
+  final today = await ref.watch(dailyLogRepositoryProvider).today();
+
+  await service.rearm(
+    weekly: NotificationPolicy.weeklySummary(insights),
+    dayAlreadyLogged: !today.isEmpty,
+  );
+});

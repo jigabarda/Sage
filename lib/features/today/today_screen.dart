@@ -48,7 +48,16 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   Future<void> _startNow(EpisodeKind kind) async {
     final repo = ref.read(episodeRepositoryProvider);
-    final id = await repo.startNow(kind);
+    final startedAt = DateTime.now();
+    final id = await repo.startNow(kind, at: startedAt);
+
+    // Armed here rather than on a timer, so it survives the app being closed -
+    // which is the whole point, since someone mid-attack puts the phone down.
+    // No-ops unless the follow-up is switched on.
+    await ref
+        .read(notificationServiceProvider)
+        .scheduleFollowUp(kindLabel: kind.label, startedAt: startedAt);
+
     if (!mounted) return;
     invalidateEpisodeData(ref);
 
@@ -70,6 +79,10 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
 
   Future<void> _close(Episode e) async {
     await ref.read(episodeRepositoryProvider).close(e.id);
+    // Cancelled so "still going?" cannot arrive after it has stopped. A
+    // reminder about something already dealt with is how someone learns to
+    // ignore the next one.
+    await ref.read(notificationServiceProvider).cancelFollowUp();
     if (!mounted) return;
     invalidateEpisodeData(ref);
   }

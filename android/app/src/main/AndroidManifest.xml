@@ -6,6 +6,17 @@
       SAGE_PROJECT_GUIDE.md. Check the *merged* manifest after adding any
       dependency; a package can inject a permission this file never declares.
     -->
+    <!--
+      Scheduled notifications must survive a reboot. Without this the weekly
+      summary is silently lost the first time the phone restarts, which is
+      exactly the case it exists for - someone who has stopped opening the app.
+      The plugin declares POST_NOTIFICATIONS and VIBRATE itself; this one is
+      opt-in and has to be asked for here.
+
+      Still no INTERNET. See non-negotiable 10.
+    -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
     <application
         android:label="Sage"
         android:name="${applicationName}"
@@ -40,6 +51,21 @@
         <meta-data
             android:name="flutterEmbedding"
             android:value="2" />
+
+        <!-- Re-arms scheduled notifications after a reboot or an app update. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
+                <action android:name="com.htc.intent.action.QUICKBOOT_POWERON" />
+            </intent-filter>
+        </receiver>
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ScheduledNotificationReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and
