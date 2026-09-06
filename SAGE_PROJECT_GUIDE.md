@@ -589,4 +589,38 @@ Decide before the phase that needs them:
 
 ## Feature Status
 
-Nothing is built. This document is the plan, agreed before Phase 0.
+| Phase | State |
+|---|---|
+| 0 — Foundation | **Built.** Branch `phase-0-foundation`. |
+| 1 — Logging loop | Not started |
+| 2 — Safety and in-attack help | Not started |
+| 3 — Correlation engine | Not started |
+| 4 — Online assistant | Deferred by decision; may never be built |
+| 5 — Notifications | Not started |
+| 6 — Doctor export | Not started |
+| 7 — Polish and release | Not started |
+
+### What Phase 0 actually laid down
+
+- `lib/core/` — `SageTokens` (`ThemeExtension`, no `success` token by design),
+  `buildSageTheme`, six low-chroma palettes with olive as `fallback`,
+  `ThemeController`, `newLocalId`, and the day arithmetic.
+- `lib/data/db/sage_database.dart` — schema v1 and the `openOptions()` pragma
+  sequence.
+- `lib/router.dart` + `lib/features/shell/` — four-tab `StatefulShellRoute`
+  with per-tab stacks. Each tab renders a `PlaceholderScreen` naming the phase
+  that owns it, so an unbuilt screen reads as unfinished rather than as an
+  empty state.
+- `test/` — 74 tests: migrations driven through the real open path, day
+  arithmetic, and a contrast pass over every palette in both brightnesses.
+
+Two things worth not relearning:
+
+- **`localDayOf` re-anchors the local calendar date to UTC midnight before
+  dividing.** Dividing a local midnight's epoch millis is off by one anywhere
+  east or west of UTC — in UTC+8, local midnight on the 6th is 16:00 on the
+  5th in UTC. `dates_test.dart` caught it; keep those tests.
+- **The release APK carries no `INTERNET` permission, verified against the
+  merged manifest.** The debug variant does carry it, from Flutter's own
+  `src/debug/AndroidManifest.xml`, for hot reload. That is expected — see
+  non-negotiable 10.
