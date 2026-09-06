@@ -606,6 +606,44 @@ Decide before the phase that needs them:
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
 
+### What Phase 6 added
+
+- `lib/data/export/export_service.dart` — the document, as plain text.
+- `ExportScreen` — a full preview, then Copy or Share.
+- `test/tools/dump_export.dart`, the counterpart to `dump_insights.dart`.
+
+**Plain text, not PDF or Markdown.** A PDF costs a rendering dependency for
+something a doctor is as happy to paste into a record; a `.md` file opened on a
+phone shows the reader raw asterisks.
+
+Four things the document must always do, each with a test:
+
+- **Say everything is self-reported, above the numbers.** A clinician reading a
+  tidy generated document can reasonably take it for measured data unless told
+  otherwise before they start.
+- **Never present a dose as a prescription.** `meds.dose_text` is reproduced
+  verbatim and labelled as the person's own words.
+- **Keep the correlational caveat beside the patterns**, not in a footer nobody
+  reaches.
+- **Include every safety check that fired.** Designed into Tier 0 for this —
+  "the app told me to go to A&E and I did not" cannot be reconstructed from
+  episode rows.
+
+The preview screen is not decoration. This is the one place health data leaves
+the phone, through whatever app the person picks from the share sheet. Handing
+that over without showing what is in it would make the app's "everything stays
+here" promise rest on trusting a button.
+
+Smaller decisions: the person's own trigger attributions are printed as "they
+thought", kept distinct from the app's findings in PATTERNS; an unrated
+reliever prints "(not rated)" rather than blank, so it does not read as having
+done nothing; summary figures are medians.
+
+**Not built, and worth knowing:** `meds` still has no entry UI, so the
+medications section is empty in practice. And there is no backup or restore —
+losing the phone loses the log. Both are candidates for Phase 7 or a phase of
+their own; neither was in this phase's scope.
+
 ### What Phase 5 added
 
 - `lib/data/notifications/notification_policy.dart` — pure decisions: when to
@@ -776,7 +814,7 @@ Three rules encoded in code that are easy to undo by accident:
   Aggregate claims about what usually helps are a Phase 3 rule with an
   evidence gate that states its numbers.
 | 5 — Notifications | **Built.** Branch `phase-5-notifications`. |
-| 6 — Doctor export | Not started |
+| 6 — Doctor export | **Built.** Branch `phase-6-export`. |
 | 7 — Polish and release | Not started |
 
 ### What Phase 0 actually laid down
