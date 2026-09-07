@@ -25,6 +25,17 @@ class SettingsScreen extends ConsumerWidget {
           const _Notifications(),
           Gap.h32,
           SageSection(
+            title: 'Backup',
+            hint:
+                'Everything lives on this phone, so a copy kept elsewhere '
+                'is the only thing standing between you and losing the log.',
+            child: OutlinedButton(
+              onPressed: () => context.push('/backup'),
+              child: const Text('Save or restore a backup'),
+            ),
+          ),
+          Gap.h32,
+          SageSection(
             title: 'Share with a doctor',
             hint:
                 'A plain-text summary of your log, with the patterns and '

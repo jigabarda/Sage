@@ -7,6 +7,7 @@ import 'package:sage/core/sage_theme.dart';
 import 'package:sage/data/db/sage_database.dart';
 import 'package:sage/data/models/episode.dart';
 import 'package:sage/data/repositories/episode_repository.dart';
+import 'package:sage/features/backup/backup_screen.dart';
 import 'package:sage/features/daily/daily_log_screen.dart';
 import 'package:sage/features/export/export_screen.dart';
 import 'package:sage/features/guidance/guidance_screen.dart';
@@ -101,6 +102,7 @@ void main() {
     'Escalation (urgent)': const EscalationScreen(flagCode: 'weight_loss'),
     'Guidance': const GuidanceScreen(kind: EpisodeKind.migraine),
     'Export': const ExportScreen(),
+    'Backup': const BackupScreen(),
   };
 
   // 320x640 is the narrowest Android still ships. 2.0 is the top of the

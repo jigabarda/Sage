@@ -616,14 +616,10 @@ order they matter:
 1. **The red-flag list has not been reviewed by a clinician.** Adequate for the
    author's own use; check it against a current clinical source before the APK
    goes to anyone else. Outstanding since Phase 2.
-2. **No backup or restore.** Losing the phone loses the log. Non-negotiable 4
-   rules out cloud sync, so a manual export/import is the only safety net there
-   could be. The doctor export is human-readable and deliberately not a
-   restorable format.
-3. **`meds` has no entry UI.** The table, the schema and the export all handle
+2. **`meds` has no entry UI.** The table, the schema and the export all handle
    medications; nothing writes to them.
-4. **Tier 3 is deferred** and may never be built. See The Online Assistant.
-5. **Type is the platform font.** Bundled families were deferred in Phase 0 and
+3. **Tier 3 is deferred** and may never be built. See The Online Assistant.
+4. **Type is the platform font.** Bundled families were deferred in Phase 0 and
    never revisited.
 
 ## Open Questions
@@ -655,6 +651,50 @@ Decide before the phase that needs them:
 | 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 8 added
+
+Not in the original roadmap. Added because it was the highest-value item left
+in Known Gaps: non-negotiable 4 rules out cloud sync, so losing the phone means
+losing years of data, and a manual backup is the only safety net that can exist
+under that constraint.
+
+- `lib/data/backup/backup_service.dart` — whole-database JSON export and
+  restore.
+- `BackupScreen`, reached from Settings.
+
+**This is not the doctor export, and neither substitutes for the other.** The
+doctor export is prose written for a human, lossy by design; nothing could
+rebuild the database from it. The backup carries raw rows and a schema version.
+
+Decisions that matter:
+
+- **Restore replaces; it does not merge.** Merging two logs of the same
+  condition needs identity rules nobody can specify — is an episode at 09:00 in
+  both files one episode or two? Getting that wrong silently doubles someone's
+  attack count and corrupts every rate the correlation engine computes.
+  Replacing is blunt but knowable, and the dialog names what is about to be
+  destroyed.
+- **The whole restore is one transaction.** A half-applied restore — old
+  episodes deleted, new ones not yet written — is the worst outcome this app
+  could produce. There is a test that fails a restore partway and asserts the
+  original data is untouched.
+- **`inspect` is separate from `restore`** so the confirmation can say what is
+  in the file before anyone agrees to anything. It writes nothing.
+- **A backup from a newer build is refused**, because it may carry columns this
+  one has never heard of and dropping them silently would lose data the user
+  believes is backed up.
+- **Unknown columns are dropped rather than fatal**, and missing ones take
+  their schema default. That covers additive migrations, which is nearly all of
+  them. A migration that renames or repurposes a column needs explicit handling
+  in `restore` — this is the one place that will not just work.
+- **`insertOrder` is load-bearing.** Foreign keys are enforced during a
+  restore, so a child written before its parent fails outright. `deleteOrder`
+  is its reverse.
+
+When the schema version changes, bump nothing here — `BackupService.schemaVersion`
+reads `SageDatabase.schemaVersion` directly, because Sellora's guide records
+that a private duplicate of that number is exactly how the two drifted apart.
 
 ### What Phase 7 added
 
@@ -893,6 +933,7 @@ Three rules encoded in code that are easy to undo by accident:
 | 5 — Notifications | **Built.** Branch `phase-5-notifications`. |
 | 6 — Doctor export | **Built.** Branch `phase-6-export`. |
 | 7 — Polish and release | **Built.** Branch `phase-7-polish`. |
+| 8 — Backup and restore | **Built.** Branch `phase-8-backup`. Added after the original roadmap. |
 
 ### What Phase 0 actually laid down
 
