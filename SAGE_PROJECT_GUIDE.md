@@ -470,6 +470,38 @@ Follow Sellora's pattern exactly, including the parts that look strange:
   version.
 - Bump the export schema version to match.
 
+## Signing
+
+Release signing reads `android/key.properties`, which is gitignored and must
+never be committed. When it is absent the release build falls back to the debug
+key, so a fresh clone still builds — it just produces an APK that cannot update
+an installed release build.
+
+To set it up once:
+
+```
+keytool -genkey -v -keystore ~/sage-release.jks   -keyalg RSA -keysize 2048 -validity 10000 -alias sage
+```
+
+Then create `android/key.properties`:
+
+```
+storePassword=<what you just typed>
+keyPassword=<what you just typed>
+keyAlias=sage
+storeFile=C:/Users/<you>/sage-release.jks
+```
+
+**Back the keystore up somewhere that is not this machine.** Losing it is
+unrecoverable: an installed release build can never be updated in place again,
+and the only way to install a newer version is to uninstall first — which wipes
+the log. That is a worse outcome here than in most apps, because the log is the
+product and there is no backup feature yet.
+
+The release build does not minify or shrink resources. The app is sideloaded
+rather than published, so there is no download size to defend, and an
+obfuscated stack trace from your own phone is worse than a large APK.
+
 ## Privacy And Data
 
 **As currently planned (Phases 0–3), no health data leaves the device at all.**
@@ -576,6 +608,24 @@ for anything touching routing, startup, or Android behavior.
 - Formatted and analyzed.
 - Anything safety-related has a test.
 
+## Known Gaps
+
+The roadmap is complete. These are the things deliberately not built, in the
+order they matter:
+
+1. **The red-flag list has not been reviewed by a clinician.** Adequate for the
+   author's own use; check it against a current clinical source before the APK
+   goes to anyone else. Outstanding since Phase 2.
+2. **No backup or restore.** Losing the phone loses the log. Non-negotiable 4
+   rules out cloud sync, so a manual export/import is the only safety net there
+   could be. The doctor export is human-readable and deliberately not a
+   restorable format.
+3. **`meds` has no entry UI.** The table, the schema and the export all handle
+   medications; nothing writes to them.
+4. **Tier 3 is deferred** and may never be built. See The Online Assistant.
+5. **Type is the platform font.** Bundled families were deferred in Phase 0 and
+   never revisited.
+
 ## Open Questions
 
 Decide before the phase that needs them:
@@ -605,6 +655,33 @@ Decide before the phase that needs them:
 | 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 7 added
+
+- `test/layout_test.dart` — every screen rendered at 320dp and 360dp, at 1x,
+  1.5x and 2x text. 60 combinations, and an overflow fails the build.
+- A vector adaptive launcher icon, replacing the default Flutter logo.
+- Release signing via `android/key.properties` — see Signing above.
+- Version to 1.0.0.
+
+**Large text is not an edge case in this app.** Photophobia and visual aura are
+core migraine symptoms, and a large system font is one of the first things
+people with them turn on. An app for migraine that breaks at 2x text is broken
+for a meaningful share of the people it is for, which is why that check is a
+test rather than a manual pass.
+
+Before trusting a layout suite, confirm it can fail: a deliberate `Row` of two
+500dp boxes at 320dp was checked to produce `A RenderFlex overflowed by 680
+pixels`. A green suite that cannot go red is worse than no suite.
+
+The icon is vector-only — an adaptive icon plus an Android 13 monochrome layer,
+no bitmap at any density. AGP renames resources in the release APK
+(`res/0E.xml`), so grepping the zip for `ic_launcher` finds nothing; check
+`resources.arsc` for the names instead.
+
+**Not verified: how the icon actually looks.** It is a path written without
+seeing it rendered. Install and glance at the launcher before assuming it is
+right.
 
 ### What Phase 6 added
 
@@ -815,7 +892,7 @@ Three rules encoded in code that are easy to undo by accident:
   evidence gate that states its numbers.
 | 5 — Notifications | **Built.** Branch `phase-5-notifications`. |
 | 6 — Doctor export | **Built.** Branch `phase-6-export`. |
-| 7 — Polish and release | Not started |
+| 7 — Polish and release | **Built.** Branch `phase-7-polish`. |
 
 ### What Phase 0 actually laid down
 
