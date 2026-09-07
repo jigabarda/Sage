@@ -58,6 +58,7 @@ class EpisodeRepository {
     List<String> symptomCodes = const [],
     List<EpisodeReliever> relievers = const [],
     List<String> userTriggerCodes = const [],
+    List<String> medIds = const [],
   }) async {
     _assertSeverity(severity);
     _assertOrder(startedAt, endedAt);
@@ -83,6 +84,8 @@ class EpisodeRepository {
         symptomCodes: symptomCodes,
         relievers: relievers,
         userTriggerCodes: userTriggerCodes,
+        medIds: medIds,
+        takenAt: startedAt,
       );
     });
     return id;
@@ -104,6 +107,7 @@ class EpisodeRepository {
     List<String> symptomCodes = const [],
     List<EpisodeReliever> relievers = const [],
     List<String> userTriggerCodes = const [],
+    List<String> medIds = const [],
   }) async {
     _assertSeverity(severity);
     _assertOrder(startedAt, endedAt);
@@ -145,12 +149,18 @@ class EpisodeRepository {
         whereArgs: [id, TriggerSource.user],
       );
 
+      // Only doses attached to *this* episode. A standalone dose, or one
+      // recorded against another episode, is not the editor's to remove.
+      await txn.delete('med_doses', where: 'episode_id = ?', whereArgs: [id]);
+
       await _writeChildren(
         txn,
         id,
         symptomCodes: symptomCodes,
         relievers: relievers,
         userTriggerCodes: userTriggerCodes,
+        medIds: medIds,
+        takenAt: startedAt,
       );
     });
   }
@@ -269,6 +279,12 @@ class EpisodeRepository {
       where: 'episode_id = ?',
       whereArgs: [id],
     );
+    final doses = await _db.query(
+      'med_doses',
+      columns: ['med_id'],
+      where: 'episode_id = ?',
+      whereArgs: [id],
+    );
 
     return EpisodeDetail(
       episode: episode,
@@ -277,6 +293,7 @@ class EpisodeRepository {
           .toList(growable: false),
       relievers: relievers.map(EpisodeReliever.fromRow).toList(growable: false),
       triggers: triggers.map(EpisodeTrigger.fromRow).toList(growable: false),
+      medIds: doses.map((r) => r['med_id']! as String).toList(growable: false),
     );
   }
 
@@ -307,6 +324,8 @@ class EpisodeRepository {
     required List<String> symptomCodes,
     required List<EpisodeReliever> relievers,
     required List<String> userTriggerCodes,
+    required List<String> medIds,
+    required DateTime takenAt,
   }) async {
     for (final code in symptomCodes.toSet()) {
       await txn.insert('episode_symptoms', {
@@ -334,6 +353,17 @@ class EpisodeRepository {
         'episode_id': episodeId,
         'trigger_code': code,
         'source': TriggerSource.user,
+      });
+    }
+    for (final medId in medIds.toSet()) {
+      // taken_at is the episode's start rather than 'now', so editing an
+      // episode a week later does not record the dose as happening then -
+      // which would move it into the wrong day for the rescue-use count.
+      await txn.insert('med_doses', {
+        'id': newLocalId('dose'),
+        'med_id': medId,
+        'taken_at': takenAt.millisecondsSinceEpoch,
+        'episode_id': episodeId,
       });
     }
   }

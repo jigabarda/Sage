@@ -12,6 +12,7 @@ import 'package:sage/features/daily/daily_log_screen.dart';
 import 'package:sage/features/export/export_screen.dart';
 import 'package:sage/features/guidance/guidance_screen.dart';
 import 'package:sage/features/history/history_screen.dart';
+import 'package:sage/features/meds/meds_screen.dart';
 import 'package:sage/features/patterns/patterns_screen.dart';
 import 'package:sage/features/today/today_screen.dart';
 import 'package:sage/features/triage/escalation_screen.dart';
@@ -103,6 +104,7 @@ void main() {
     'Guidance': const GuidanceScreen(kind: EpisodeKind.migraine),
     'Export': const ExportScreen(),
     'Backup': const BackupScreen(),
+    'Medications': const MedsScreen(),
   };
 
   // 320x640 is the narrowest Android still ships. 2.0 is the top of the

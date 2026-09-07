@@ -52,6 +52,7 @@ class ExportService {
     _header(b, at);
     await _coverage(b);
     await _summary(b);
+    await _rescueUse(b);
     await _patterns(b);
     await _medications(b);
     await _safetyChecks(b);
@@ -168,8 +169,24 @@ class ExportService {
     b.writeln();
   }
 
+  Future<void> _rescueUse(StringBuffer b) async {
+    final finding = await _insights.rescueUseFinding();
+    if (finding == null) return;
+    b.writeln('RESCUE MEDICATION USE');
+    b.writeln('  ${finding.detail}');
+    // Stated as a count and nothing else, for the same reason the insight is:
+    // how many days is too many differs by drug, and this app has no view.
+    b.writeln('  Counted from doses recorded in the app. Sage does not');
+    b.writeln('  interpret this figure.');
+    b.writeln();
+  }
+
   Future<void> _patterns(StringBuffer b) async {
-    final found = await _insights.all();
+    // The rescue-use count has its own section above, and repeating it here
+    // would have a doctor reading the same sentence twice in one page.
+    final found = (await _insights.all())
+        .where((i) => i.id != 'rescue_use')
+        .toList();
     b.writeln('PATTERNS IN THE LOG');
     if (found.isEmpty) {
       b.writeln('  Nothing has cleared the app\'s evidence threshold yet.');
@@ -208,11 +225,27 @@ class ExportService {
       final dose = (r['dose_text'] as String?) ?? '';
       final kind = r['kind'] == 'preventive' ? 'preventive' : 'rescue';
       final active = (r['active'] as int? ?? 1) == 1 ? '' : ' (no longer used)';
+      final doses =
+          (await _db.rawQuery(
+                'SELECT COUNT(*) AS n FROM med_doses WHERE med_id = ?',
+                [r['id']],
+              )).single['n']
+              as int? ??
+          0;
       b.writeln(
         '  - ${r['name']}'
         '${dose.isEmpty ? '' : ' — "$dose"'} [$kind]$active',
       );
+      // Only doses the person recorded against an episode. Preventive
+      // medication taken daily is not logged, so a low number here means
+      // "not recorded", never "not taken" - said plainly below so a
+      // clinician does not read the gap as data.
+      b.writeln('      $doses ${doses == 1 ? 'dose' : 'doses'} recorded');
     }
+    b.writeln();
+    b.writeln('  Doses are only recorded when attached to an episode. A low');
+    b.writeln('  count means it was not logged, not that it was not taken -');
+    b.writeln('  regular preventive medication in particular is not tracked.');
     b.writeln();
   }
 

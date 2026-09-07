@@ -71,6 +71,10 @@ class InsightsService {
   static const frequencyWindowDays = 28;
   static const minFrequencyChange = 0.5;
 
+  /// The window the rescue-medication count is reported over. A month is the
+  /// period clinicians ask about, so the figure is directly answerable.
+  static const rescueWindowDays = 30;
+
   /// Rated attempts before a reliever's record is presented as a pattern.
   /// Tighter than the Tier 1 reminder, because this is framed as a finding.
   static const minRatedRelieverAttempts = 4;
@@ -85,8 +89,69 @@ class InsightsService {
     for (final kind in EpisodeKind.values) {
       out.addAll(await forKind(kind));
     }
+    // Not per-condition, and outside the per-condition episode gate: how often
+    // rescue medication was needed is a fact about the person, not about one
+    // diagnosis.
+    final rescue = await rescueUseFinding();
+    if (rescue != null) out.add(rescue);
+
     out.sort((a, b) => a.strength.index.compareTo(b.strength.index));
     return List.unmodifiable(out);
+  }
+
+  /// How many of the last [rescueWindowDays] days involved rescue medication.
+  ///
+  /// **A count, and deliberately nothing more.** How many days is too many is a
+  /// clinical question with different answers for different drugs, and this app
+  /// has no view on it — reporting the number only above some threshold would
+  /// itself be a hidden judgement, so it is reported whenever there is anything
+  /// to report. The reader takes it to someone qualified to interpret it.
+  ///
+  /// Info strength: it is a plain summary, not a pattern, and it must not
+  /// outrank a correlation finding in the list or the weekly notification.
+  Future<Insight?> rescueUseFinding({DateTime? now}) async {
+    final at = now ?? DateTime.now();
+
+    // The denominator has to describe a window that was actually observed.
+    // "3 of the last 30 days" is misleading after a week of use.
+    final first = await _firstRecordedDay();
+    if (first == null) return null;
+    if (localDayOf(at) - first < rescueWindowDays - 1) return null;
+
+    final from = startOfDay(
+      localDayOf(at) - (rescueWindowDays - 1),
+    ).millisecondsSinceEpoch;
+    final rows = await _db.rawQuery(
+      '''
+      SELECT COUNT(DISTINCT CAST((d.taken_at - ?) / 86400000 AS INTEGER)) AS n
+      FROM med_doses d
+      JOIN meds m ON m.id = d.med_id
+      WHERE m.kind = 'rescue' AND d.taken_at >= ?
+      ''',
+      [from, from],
+    );
+    final days = (rows.single['n'] as int?) ?? 0;
+    if (days == 0) return null;
+
+    return Insight(
+      id: 'rescue_use',
+      strength: InsightStrength.info,
+      icon: Icons.medication_outlined,
+      title: 'Rescue medication',
+      detail:
+          'You recorded taking rescue medication on $days of the last '
+          '$rescueWindowDays days.',
+    );
+  }
+
+  Future<LocalDay?> _firstRecordedDay() async {
+    final rows = await _db.rawQuery(
+      'SELECT MIN(d) AS first FROM ('
+      ' SELECT MIN(started_day) AS d FROM episodes'
+      ' UNION ALL SELECT MIN(local_day) FROM daily_log'
+      ')',
+    );
+    return rows.single['first'] as int?;
   }
 
   Future<List<Insight>> forKind(EpisodeKind kind) async {

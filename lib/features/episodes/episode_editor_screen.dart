@@ -10,6 +10,7 @@ import '../../constants/triggers.dart';
 import '../../core/sage_tokens.dart';
 import '../../core/sage_ui.dart';
 import '../../data/models/episode.dart';
+import '../../data/models/med.dart';
 import '../../providers.dart';
 
 final _dateFormat = DateFormat('EEE d MMM, HH:mm');
@@ -39,6 +40,7 @@ class _EpisodeEditorScreenState extends ConsumerState<EpisodeEditorScreen> {
   final _symptoms = <String>{};
   final _triggers = <String>{};
   final _relievers = <String, EpisodeReliever>{};
+  final _medIds = <String>{};
   final _notes = TextEditingController();
 
   bool _loaded = false;
@@ -73,6 +75,9 @@ class _EpisodeEditorScreenState extends ConsumerState<EpisodeEditorScreen> {
     _relievers
       ..clear()
       ..addEntries(detail.relievers.map((r) => MapEntry(r.relieverCode, r)));
+    _medIds
+      ..clear()
+      ..addAll(detail.medIds);
     _loaded = true;
   }
 
@@ -90,6 +95,7 @@ class _EpisodeEditorScreenState extends ConsumerState<EpisodeEditorScreen> {
           symptomCodes: _symptoms.toList(),
           relievers: _relievers.values.toList(),
           userTriggerCodes: _triggers.toList(),
+          medIds: _medIds.toList(),
         );
       } else {
         await repo.update(
@@ -102,6 +108,7 @@ class _EpisodeEditorScreenState extends ConsumerState<EpisodeEditorScreen> {
           symptomCodes: _symptoms.toList(),
           relievers: _relievers.values.toList(),
           userTriggerCodes: _triggers.toList(),
+          medIds: _medIds.toList(),
         );
       }
       if (!mounted) return;
@@ -353,6 +360,13 @@ class _EpisodeEditorScreenState extends ConsumerState<EpisodeEditorScreen> {
             ),
           ),
           Gap.h24,
+          _MedsSection(
+            selected: _medIds,
+            onToggle: (id) => setState(
+              () => _medIds.contains(id) ? _medIds.remove(id) : _medIds.add(id),
+            ),
+          ),
+          Gap.h24,
           SageSection(
             title: 'Anything else',
             child: TextField(
@@ -586,6 +600,57 @@ class _RelieverPicker extends StatelessWidget {
           ],
         ],
       ],
+    );
+  }
+}
+
+/// Which medications were taken for this episode.
+///
+/// Only what is currently taken is offered; something marked "no longer taken"
+/// stays on past episodes but is not a choice for new ones.
+///
+/// The dose is recorded at the episode's *start*, not now, so filling this in
+/// a week later does not move the dose into the wrong day for the rescue-use
+/// count.
+class _MedsSection extends ConsumerWidget {
+  const _MedsSection({required this.selected, required this.onToggle});
+
+  final Set<String> selected;
+  final ValueChanged<String> onToggle;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rescue = ref.watch(activeMedsProvider(MedKind.rescue));
+    final preventive = ref.watch(activeMedsProvider(MedKind.preventive));
+
+    final meds = <Med>[
+      ...rescue.maybeWhen(data: (m) => m, orElse: () => const <Med>[]),
+      ...preventive.maybeWhen(data: (m) => m, orElse: () => const <Med>[]),
+    ];
+
+    if (meds.isEmpty) {
+      // No prompt to go and add one. Someone mid-form does not want to be sent
+      // to a different screen, and Settings is where medications live.
+      return const SizedBox.shrink();
+    }
+
+    return SageSection(
+      title: 'Medication taken',
+      hint:
+          'Recorded against this episode, so the doctor export can show how '
+          'often you have needed it.',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          for (final m in meds)
+            SageChip(
+              label: m.name,
+              selected: selected.contains(m.id),
+              onTap: () => onToggle(m.id),
+            ),
+        ],
+      ),
     );
   }
 }

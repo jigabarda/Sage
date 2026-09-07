@@ -148,10 +148,14 @@ class EpisodeDetail {
     required this.symptomCodes,
     required this.relievers,
     required this.triggers,
+    required this.medIds,
   });
 
   final Episode episode;
   final List<String> symptomCodes;
   final List<EpisodeReliever> relievers;
   final List<EpisodeTrigger> triggers;
+
+  /// Medications recorded as taken for this episode, via `med_doses`.
+  final List<String> medIds;
 }
