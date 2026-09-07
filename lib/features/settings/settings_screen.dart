@@ -7,6 +7,7 @@ import '../../core/sage_tokens.dart';
 import '../../core/sage_ui.dart';
 import '../../core/theme_controller.dart';
 import '../../data/notifications/notification_policy.dart';
+import '../../data/settings/cycle_tracking.dart';
 import '../../providers.dart';
 
 class SettingsScreen extends ConsumerWidget {
@@ -23,6 +24,8 @@ class SettingsScreen extends ConsumerWidget {
           const _Appearance(),
           Gap.h32,
           const _Notifications(),
+          Gap.h32,
+          const _CycleTracking(),
           Gap.h32,
           SageSection(
             title: 'Medications',
@@ -278,6 +281,32 @@ class _Toggle extends StatelessWidget {
           ),
           Switch(value: value, onChanged: enabled ? onChanged : null),
         ],
+      ),
+    );
+  }
+}
+
+class _CycleTracking extends ConsumerWidget {
+  const _CycleTracking();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final on = ref.watch(cycleTrackingProvider);
+    return SageSection(
+      title: 'Menstrual cycle',
+      hint:
+          'Adds a period question to the daily log. Migraine around a period '
+          'is a common pattern, and this is the only way the app can find it.',
+      child: _Toggle(
+        label: 'Track my cycle',
+        // Turning it off hides the field and keeps what was recorded.
+        // Deleting it on a toggle would be a surprise.
+        detail:
+            'Off by default. Turning it off later hides the question but '
+            'keeps anything already recorded.',
+        value: on,
+        enabled: true,
+        onChanged: (v) => ref.read(cycleTrackingProvider.notifier).set(v),
       ),
     );
   }

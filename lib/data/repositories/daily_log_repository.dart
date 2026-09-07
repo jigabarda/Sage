@@ -77,6 +77,17 @@ class DailyLogRepository {
     return (rows.single['n'] as int?) ?? 0;
   }
 
+  /// Days recorded as the first day of a period (`cycle_day = 1`).
+  ///
+  /// The only thing the cycle rule and the day-number suggestion are built
+  /// from — nobody is asked to work out that today is day 14.
+  Future<List<LocalDay>> periodStarts() async {
+    final rows = await _db.rawQuery(
+      'SELECT local_day FROM daily_log WHERE cycle_day = 1 ORDER BY local_day',
+    );
+    return rows.map((r) => r['local_day']! as int).toList(growable: false);
+  }
+
   /// The most recent day with any entry, or null if the table is empty.
   Future<LocalDay?> lastLoggedDay() async {
     final rows = await _db.rawQuery(

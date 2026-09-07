@@ -5,7 +5,9 @@ import 'package:intl/intl.dart';
 import '../../core/dates.dart';
 import '../../core/sage_tokens.dart';
 import '../../core/sage_ui.dart';
+import '../../data/insights/cycle.dart';
 import '../../data/models/daily_log.dart';
+import '../../data/settings/cycle_tracking.dart';
 import '../../providers.dart';
 
 final _dayLabel = DateFormat('EEEE d MMMM');
@@ -171,6 +173,20 @@ class _DailyLogScreenState extends ConsumerState<DailyLogScreen> {
                   ),
                 ),
               ),
+              if (ref.watch(cycleTrackingProvider)) ...[
+                Gap.h16,
+                _CycleSection(
+                  day: _day,
+                  value: d.cycleDay,
+                  onChanged: (v) => setState(
+                    () => _draft = d.copyWith(
+                      cycleDay: v,
+                      clearCycleDay: v == null,
+                    ),
+                  ),
+                ),
+                Gap.h8,
+              ],
               Gap.h8,
               _Tristate(
                 label: 'Ate within about 3 hours of lying down',
@@ -431,6 +447,103 @@ class _Tristate extends StatelessWidget {
               ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The cycle question, shown only when tracking is switched on.
+///
+/// Day 1 is the first day of a period, and it is the only value the app really
+/// needs: every other day number and the whole perimenstrual rule are derived
+/// from the days recorded as 1. So "Period started today" is the prominent
+/// control, and the day number is a secondary field that fills itself in.
+class _CycleSection extends ConsumerWidget {
+  const _CycleSection({
+    required this.day,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final LocalDay day;
+  final int? value;
+  final ValueChanged<int?> onChanged;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = context.t;
+    final starts = ref
+        .watch(periodStartsProvider)
+        .maybeWhen(data: (s) => s, orElse: () => const <LocalDay>[]);
+
+    // Counted from the last recorded start, so nobody has to work it out.
+    // Null when there is nothing to count from, or when the answer would be
+    // absurd — see Cycle.dayNumberFor.
+    final suggested = Cycle.dayNumberFor(day, starts);
+    final isStart = value == 1;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: value == null ? t.surfaceAlt : t.surface,
+        borderRadius: Radii.md,
+        border: Border.all(color: value == null ? Colors.transparent : t.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Menstrual cycle', style: context.text.bodyMedium),
+          Gap.h12,
+          SageChip(
+            label: 'Period started today',
+            selected: isStart,
+            onTap: () => onChanged(isStart ? null : 1),
+          ),
+          Gap.h12,
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  value == null ? 'Cycle day not recorded' : 'Cycle day $value',
+                  style: context.text.bodySmall?.copyWith(
+                    color: value == null ? t.inkFaint : t.accent,
+                    fontWeight: value == null
+                        ? FontWeight.w400
+                        : FontWeight.w600,
+                  ),
+                ),
+              ),
+              if (value != null)
+                IconButton(
+                  tooltip: 'Leave blank',
+                  onPressed: () => onChanged(null),
+                  icon: Icon(
+                    Icons.backspace_outlined,
+                    size: 18,
+                    color: t.inkFaint,
+                  ),
+                ),
+              IconButton(
+                onPressed: value == null || value! <= 1
+                    ? null
+                    : () => onChanged(value! - 1),
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
+              IconButton(
+                onPressed: () => onChanged(
+                  value == null ? (suggested ?? 1) : (value! + 1).clamp(1, 60),
+                ),
+                icon: const Icon(Icons.add_circle_outline),
+              ),
+            ],
+          ),
+          if (value == null && suggested != null)
+            Text(
+              'Counting from your last recorded period, today would be day '
+              '$suggested.',
+              style: context.text.bodySmall?.copyWith(color: t.inkMuted),
+            ),
         ],
       ),
     );

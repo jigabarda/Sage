@@ -139,6 +139,7 @@ final insightsProgressProvider = FutureProvider<String>(
 /// [invalidateEpisodeData].
 void invalidateDailyData(WidgetRef ref) {
   ref.invalidate(dailyLogForDayProvider);
+  ref.invalidate(periodStartsProvider);
   ref.invalidate(insightsProvider);
   ref.invalidate(insightsProgressProvider);
   // An episode write can add or remove med_doses rows.
@@ -211,3 +212,8 @@ final medIdsForEpisodeProvider = FutureProvider.family<List<String>, String>((
 ) {
   return ref.watch(medsRepositoryProvider).medIdsForEpisode(episodeId);
 });
+
+/// Days recorded as a period start, for the cycle-day suggestion.
+final periodStartsProvider = FutureProvider<List<LocalDay>>(
+  (ref) => ref.watch(dailyLogRepositoryProvider).periodStarts(),
+);

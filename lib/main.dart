@@ -7,6 +7,7 @@ import 'core/brand_palette.dart';
 import 'core/theme_controller.dart';
 import 'data/db/sage_database.dart';
 import 'data/notifications/notification_service.dart';
+import 'data/settings/cycle_tracking.dart';
 import 'providers.dart';
 
 Future<void> main() async {
@@ -32,6 +33,9 @@ Future<void> main() async {
         databaseProvider.overrideWithValue(db),
         notificationServiceProvider.overrideWithValue(notifications),
         themeModeProvider.overrideWith((ref) => ThemeController(prefs)),
+        cycleTrackingProvider.overrideWith(
+          (ref) => CycleTrackingController(prefs),
+        ),
         brandPaletteProvider.overrideWith(
           (ref) => BrandPaletteController(prefs),
         ),

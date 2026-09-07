@@ -509,6 +509,9 @@ There is no account, no server, no analytics, and no network call anywhere
 outside `lib/data/assistant/` — which is not built.
 
 - All health data is local. There is no account and no server-side copy.
+- **Cycle data is opt-in and off by default.** It is the most sensitive field in
+  the schema, it never leaves the device any more than the rest does, and it
+  appears in the doctor export only if it was recorded.
 - The only possible egress is a Tier 3 chat turn, and only the slice listed
   above. That tier is deferred and may never ship.
 - **If Tier 3 ships it is opt-in**, first use shows plainly what gets sent, and
@@ -629,11 +632,17 @@ order they matter:
 Decide before the phase that needs them:
 
 1. **Health Connect** — auto-import sleep and steps instead of manual entry?
-   Removes the biggest friction in `daily_log`, adds a permission flow and a
-   dependency. Works on sideloaded builds. *Defer to Phase 3.*
-2. **Menstrual cycle tracking** — a strong migraine correlate, but the most
-   sensitive field in the schema. In or out? *Schema has the column; UI is
-   optional and off by default until decided.*
+   **Attempted in Phase 10 and rejected.** The `health` package's current
+   release requires `share_plus ^12`, and this project is on `^13.3.0` for the
+   export and backup share sheets; pub resolves `health` to **3.0.6** (2021,
+   predating Health Connect entirely) rather than fail. Taking it would mean
+   downgrading a dependency two shipped features use and rewriting their share
+   calls, to add an import that cannot be tested without a device with Health
+   Connect populated. Revisit when `health` supports `share_plus ^13`.
+2. **Menstrual cycle tracking** — **Resolved in Phase 10: opt-in, off by
+   default.** Shipping it on would put a period question in front of everyone
+   who installs the app; shipping it not at all would drop one of the strongest
+   patterns in migraine. Opt-in resolves that without deciding for anyone.
 3. **Reflux and migraine in one app or two modes?** They share the logging
    substrate but have different triggers, symptoms, and red flags. Current plan
    is one app, `kind` on the episode. Revisit if the UI starts branching
@@ -653,6 +662,50 @@ Decide before the phase that needs them:
 | 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 10 added
+
+Resolves both of the guide's outstanding Open Questions — one by building it,
+one by finding out it cannot be built yet.
+
+- `lib/data/insights/cycle.dart` — the perimenstrual arithmetic, pure and
+  separate from the database.
+- `lib/data/settings/cycle_tracking.dart` — the opt-in switch.
+- A cycle section in the daily log, shown only when tracking is on.
+- A perimenstrual correlation rule.
+
+**Only day 1 is really recorded.** `cycle_day = 1` is a period start, and every
+other day number and the whole rule are derived from those. Nobody is asked to
+work out that today is day 14 — the day number fills itself in from the last
+recorded start, and offers nothing when the answer would be absurd (day 97 is a
+period that was never logged, not a 97-day cycle).
+
+**The rule only classifies days inside a span bracketed by recorded starts.**
+Before the first and after the last, "not around a period" is a guess: a day
+three weeks after the last start might be mid-cycle, or might be a period
+nobody logged. Counting those as baseline would manufacture the very pattern
+the rule is looking for. There is a test that puts a cluster of episodes past
+the end of the span and asserts none of the reported figures grow.
+
+The window is two days before to three days after a period start — the
+convention used in migraine research, written as a named constant with its
+reason so nobody tunes it to fit their own data. It needs three recorded starts
+before firing, because two starts is one cycle and one cycle is an anecdote.
+
+Turning tracking off hides the question and keeps what was recorded. Deleting
+on a toggle would be a surprise.
+
+### Why Health Connect was rejected
+
+Worth recording so it is not re-attempted from scratch. `flutter pub add health`
+resolves to **3.0.6** — released in 2021, before Health Connect existed — because
+the current `health 13.x` requires `share_plus ^12` while this project is on
+`^13.3.0` for the export and backup share sheets.
+
+The trade would have been: downgrade a dependency two shipped features rely on,
+rewrite their share calls, and ship an integration that cannot be tested here
+without a physical device with Health Connect installed and populated. Not worth
+it for a convenience import. Revisit when `health` supports `share_plus ^13`.
 
 ### What Phase 9 added
 
@@ -978,6 +1031,7 @@ Three rules encoded in code that are easy to undo by accident:
 | 7 — Polish and release | **Built.** Branch `phase-7-polish`. |
 | 8 — Backup and restore | **Built.** Branch `phase-8-backup`. Added after the original roadmap. |
 | 9 — Medications | **Built.** Branch `phase-9-medications`. |
+| 10 — Cycle tracking | **Built.** Branch `phase-10-cycle`. |
 
 ### What Phase 0 actually laid down
 
