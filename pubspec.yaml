@@ -27,6 +27,9 @@ dependencies:
   # file manager. The app never sends anything itself and has no permission
   # to; the share sheet is the user doing it deliberately.
   share_plus: ^13.3.0
+  # Picking a backup file to restore from. Read-only, user-initiated, and the
+  # only way data comes back INTO the app.
+  file_selector: ^1.1.0
 
 dev_dependencies:
   flutter_test:

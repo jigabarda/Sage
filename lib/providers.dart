@@ -7,6 +7,7 @@ import 'data/models/episode.dart';
 import 'core/dates.dart';
 import 'data/guidance/guidance.dart';
 import 'data/guidance/guidance_service.dart';
+import 'data/backup/backup_service.dart';
 import 'data/export/export_service.dart';
 import 'data/insights/insight.dart';
 import 'data/insights/insights_service.dart';
@@ -177,4 +178,8 @@ final exportServiceProvider = Provider<ExportService>(
 /// preview is never stale.
 final exportReportProvider = FutureProvider.autoDispose<String>(
   (ref) => ref.watch(exportServiceProvider).buildReport(),
+);
+
+final backupServiceProvider = Provider<BackupService>(
+  (ref) => BackupService(ref.watch(databaseProvider)),
 );
