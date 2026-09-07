@@ -25,6 +25,17 @@ class SettingsScreen extends ConsumerWidget {
           const _Notifications(),
           Gap.h32,
           SageSection(
+            title: 'Medications',
+            hint:
+                'What you take, in your own words. Sage stores it verbatim '
+                'and never suggests or checks anything.',
+            child: OutlinedButton(
+              onPressed: () => context.push('/meds'),
+              child: const Text('Manage medications'),
+            ),
+          ),
+          Gap.h32,
+          SageSection(
             title: 'Backup',
             hint:
                 'Everything lives on this phone, so a copy kept elsewhere '

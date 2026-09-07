@@ -616,11 +616,13 @@ order they matter:
 1. **The red-flag list has not been reviewed by a clinician.** Adequate for the
    author's own use; check it against a current clinical source before the APK
    goes to anyone else. Outstanding since Phase 2.
-2. **`meds` has no entry UI.** The table, the schema and the export all handle
-   medications; nothing writes to them.
-3. **Tier 3 is deferred** and may never be built. See The Online Assistant.
-4. **Type is the platform font.** Bundled families were deferred in Phase 0 and
+2. **Tier 3 is deferred** and may never be built. See The Online Assistant.
+3. **Type is the platform font.** Bundled families were deferred in Phase 0 and
    never revisited.
+4. **Preventive doses are not logged.** Only medication attached to an episode
+   is recorded, so a preventive taken daily leaves no trace. The export says so
+   plainly, because a clinician must not read the gap as evidence it was not
+   taken.
 
 ## Open Questions
 
@@ -651,6 +653,47 @@ Decide before the phase that needs them:
 | 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 9 added
+
+- `lib/data/models/med.dart` + `MedsRepository` — medications and their doses.
+- `MedsScreen`, reached from Settings.
+- A medication picker on the episode editor, writing `med_doses` in the same
+  transaction as the episode.
+- A rescue-use count, in Patterns and in its own export section.
+
+**There is no autocomplete, no drug database and no interaction check, and that
+absence is the design.** A field offering completions would imply the app knew
+what the drug was and had checked something about it. `dose_text` is free text
+because people write "two at onset" and "half if it's bad"; a number and a unit
+would either lose the instruction or invent precision that was never there.
+
+- **"No longer taking this" is not deletion.** Deactivating keeps the row so
+  past doses still name what was taken. Deleting cascades the doses away and
+  rewrites a history the person may be showing a doctor — the dialog says so
+  and offers the other route first.
+- **A dose is timed to the episode's start, not to now.** Filling a form in a
+  week later must not move the dose into today, which would put it in the wrong
+  day for the rescue-use count.
+- **Editing an episode rewrites only its own doses.** A dose on another episode
+  is not the editor's to remove.
+
+#### The rescue-medication count
+
+`InsightsService.rescueUseFinding` reports distinct days with a rescue dose in
+the last 30. It is **a count and nothing else**, and that restraint is
+deliberate: how many days is too many is a clinical question with different
+answers for different drugs, and this app has no view on it.
+
+Reporting the figure only *above* some threshold would itself be a hidden
+judgement, so it is reported whenever there is anything to report. A test seeds
+20 rescue days in a month — clinically notable — and asserts the app still says
+nothing about it.
+
+It is `info` strength, so it cannot lead the Patterns list or become the weekly
+notification, and it is suppressed entirely until the 30-day window has actually
+been observed. "3 of the last 30 days" after a week of use describes a window
+that never happened.
 
 ### What Phase 8 added
 
@@ -934,6 +977,7 @@ Three rules encoded in code that are easy to undo by accident:
 | 6 — Doctor export | **Built.** Branch `phase-6-export`. |
 | 7 — Polish and release | **Built.** Branch `phase-7-polish`. |
 | 8 — Backup and restore | **Built.** Branch `phase-8-backup`. Added after the original roadmap. |
+| 9 — Medications | **Built.** Branch `phase-9-medications`. |
 
 ### What Phase 0 actually laid down
 

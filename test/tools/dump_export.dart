@@ -71,6 +71,7 @@ void main() {
           severity: 7,
           notes: i == 2 ? 'started at work, had to leave early' : '',
           symptomCodes: const ['photophobia', 'nausea', 'throbbing'],
+          medIds: i % 2 == 1 ? const ['med_1'] : const [],
           userTriggerCodes: const ['short_sleep', 'stress'],
           relievers: [
             EpisodeReliever(

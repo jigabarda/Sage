@@ -12,10 +12,12 @@ import 'data/export/export_service.dart';
 import 'data/insights/insight.dart';
 import 'data/insights/insights_service.dart';
 import 'data/models/daily_log.dart';
+import 'data/models/med.dart';
 import 'data/notifications/notification_policy.dart';
 import 'data/notifications/notification_service.dart';
 import 'data/repositories/daily_log_repository.dart';
 import 'data/repositories/episode_repository.dart';
+import 'data/repositories/meds_repository.dart';
 import 'data/triage/triage_service.dart';
 
 /// Both are opened once in `main.dart` and injected as overrides, so no screen
@@ -82,6 +84,8 @@ void invalidateEpisodeData(WidgetRef ref) {
   // change which gates pass.
   ref.invalidate(insightsProvider);
   ref.invalidate(insightsProgressProvider);
+  // An episode write can add or remove med_doses rows.
+  ref.invalidate(medIdsForEpisodeProvider);
 }
 
 /// Tier 0. Held as a plain provider because `evaluate` is pure and synchronous
@@ -137,6 +141,8 @@ void invalidateDailyData(WidgetRef ref) {
   ref.invalidate(dailyLogForDayProvider);
   ref.invalidate(insightsProvider);
   ref.invalidate(insightsProgressProvider);
+  // An episode write can add or remove med_doses rows.
+  ref.invalidate(medIdsForEpisodeProvider);
 }
 
 /// Overridden in `main.dart`, where SharedPreferences is already open and the
@@ -183,3 +189,25 @@ final exportReportProvider = FutureProvider.autoDispose<String>(
 final backupServiceProvider = Provider<BackupService>(
   (ref) => BackupService(ref.watch(databaseProvider)),
 );
+
+final medsRepositoryProvider = Provider<MedsRepository>(
+  (ref) => MedsRepository(ref.watch(databaseProvider)),
+);
+
+/// Everything, including what is no longer taken — the list screen shows both.
+final medsProvider = FutureProvider<List<Med>>(
+  (ref) => ref.watch(medsRepositoryProvider).all(),
+);
+
+/// Only what is currently taken, for the episode editor's picker.
+final activeMedsProvider = FutureProvider.family<List<Med>, MedKind>(
+  (ref, kind) => ref.watch(medsRepositoryProvider).active(kind),
+);
+
+/// The medication ids already recorded against one episode.
+final medIdsForEpisodeProvider = FutureProvider.family<List<String>, String>((
+  ref,
+  episodeId,
+) {
+  return ref.watch(medsRepositoryProvider).medIdsForEpisode(episodeId);
+});
