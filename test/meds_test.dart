@@ -303,4 +303,153 @@ void main() {
       },
     );
   });
+
+  group('intake', () {
+    test('a dose can be logged with no episode at all', () async {
+      // The gap Phase 9 left: a preventive taken every morning had nowhere to
+      // go, so any intake figure built from episode-linked doses undercounts.
+      final medId = await meds.create(name: 'Daily', kind: MedKind.preventive);
+      await meds.recordDose(medId, at: ago(1));
+
+      final dose = (await db.query('med_doses')).single;
+      expect(dose['episode_id'], isNull);
+      expect(dose['med_id'], medId);
+    });
+
+    test('counts days used, not doses', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await meds.recordDose(medId, at: ago(2, hour: 9));
+      await meds.recordDose(medId, at: ago(2, hour: 21));
+      await meds.recordDose(medId, at: ago(5));
+
+      final intake = (await meds.intake()).single;
+      // Two tablets in one afternoon is one day. That is the unit a limit is
+      // given in.
+      expect(intake.doses, 3);
+      expect(intake.days, 2);
+    });
+
+    test('counts episode-linked and standalone doses together', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await episodes.create(
+        kind: EpisodeKind.migraine,
+        startedAt: ago(1),
+        severity: 6,
+        medIds: [medId],
+      );
+      await meds.recordDose(medId, at: ago(4));
+
+      final intake = (await meds.intake()).single;
+      expect(intake.days, 2);
+    });
+
+    test('ignores anything older than the window', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await meds.recordDose(medId, at: ago(2));
+      await meds.recordDose(medId, at: ago(60));
+
+      final intake = (await meds.intake()).single;
+      expect(intake.days, 1);
+    });
+
+    test('a dose can be removed when it was recorded by mistake', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      final doseId = await meds.recordDose(medId);
+      expect((await meds.intake()).single.days, 1);
+
+      // A record someone cannot correct is one they stop trusting, and an
+      // intake count is only worth having if they believe it.
+      await meds.deleteDose(doseId);
+      expect((await meds.intake()).single.days, 0);
+    });
+  });
+
+  group('the limit belongs to the person, never to the app', () {
+    test('a new medication has no limit until one is given', () async {
+      final id = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      final m = (await meds.byId(id))!;
+      // Null, not a default. A default here would be the app quietly issuing
+      // medical advice.
+      expect(m.monthlyLimitDays, isNull);
+    });
+
+    test('null is not zero', () async {
+      final id = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await meds.recordDose(id);
+
+      final intake = (await meds.intake()).single;
+      expect(intake.limit, isNull);
+      expect(intake.remaining, isNull);
+      // With no limit set there is nothing to be over. The app has no figure
+      // of its own to compare against.
+      expect(intake.overLimit, isFalse);
+    });
+
+    test('a limit of zero is a real limit', () async {
+      final id = await meds.create(
+        name: 'Stopped',
+        kind: MedKind.rescue,
+        monthlyLimitDays: 0,
+      );
+      await meds.recordDose(id);
+
+      final intake = (await meds.intake()).single;
+      expect(intake.limit, 0);
+      expect(intake.overLimit, isTrue);
+    });
+
+    test('over is strictly over, not at', () async {
+      final id = await meds.create(
+        name: 'Ibuprofen',
+        kind: MedKind.rescue,
+        monthlyLimitDays: 2,
+      );
+      await meds.recordDose(id, at: ago(1));
+      await meds.recordDose(id, at: ago(2));
+
+      var intake = (await meds.intake()).single;
+      expect(intake.days, 2);
+      expect(intake.overLimit, isFalse, reason: 'at the limit is not over it');
+      expect(intake.remaining, 0);
+
+      await meds.recordDose(id, at: ago(3));
+      intake = (await meds.intake()).single;
+      expect(intake.overLimit, isTrue);
+      expect(intake.remaining, -1);
+    });
+
+    test('a limit survives an edit that changes nothing else', () async {
+      final id = await meds.create(
+        name: 'Ibuprofen',
+        kind: MedKind.rescue,
+        monthlyLimitDays: 10,
+      );
+      await meds.update(
+        id,
+        name: 'Ibuprofen',
+        doseText: 'two at onset',
+        kind: MedKind.rescue,
+        active: true,
+        monthlyLimitDays: 10,
+      );
+      expect((await meds.byId(id))!.monthlyLimitDays, 10);
+    });
+
+    test('a limit can be cleared back to none', () async {
+      final id = await meds.create(
+        name: 'Ibuprofen',
+        kind: MedKind.rescue,
+        monthlyLimitDays: 10,
+      );
+      await meds.update(
+        id,
+        name: 'Ibuprofen',
+        doseText: '',
+        kind: MedKind.rescue,
+        active: true,
+        monthlyLimitDays: null,
+      );
+      expect((await meds.byId(id))!.monthlyLimitDays, isNull);
+    });
+  });
 }

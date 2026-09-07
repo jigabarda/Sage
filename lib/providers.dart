@@ -84,8 +84,11 @@ void invalidateEpisodeData(WidgetRef ref) {
   // change which gates pass.
   ref.invalidate(insightsProvider);
   ref.invalidate(insightsProgressProvider);
-  // An episode write can add or remove med_doses rows.
+  // An episode write can add or remove med_doses rows, which feed the
+  // intake figures as well as the episode's own detail.
   ref.invalidate(medIdsForEpisodeProvider);
+  ref.invalidate(medIntakeProvider);
+  ref.invalidate(recentDosesProvider);
 }
 
 /// Tier 0. Held as a plain provider because `evaluate` is pure and synchronous
@@ -142,8 +145,11 @@ void invalidateDailyData(WidgetRef ref) {
   ref.invalidate(periodStartsProvider);
   ref.invalidate(insightsProvider);
   ref.invalidate(insightsProgressProvider);
-  // An episode write can add or remove med_doses rows.
+  // An episode write can add or remove med_doses rows, which feed the
+  // intake figures as well as the episode's own detail.
   ref.invalidate(medIdsForEpisodeProvider);
+  ref.invalidate(medIntakeProvider);
+  ref.invalidate(recentDosesProvider);
 }
 
 /// Overridden in `main.dart`, where SharedPreferences is already open and the
@@ -178,6 +184,7 @@ final exportServiceProvider = Provider<ExportService>(
   (ref) => ExportService(
     ref.watch(databaseProvider),
     ref.watch(insightsServiceProvider),
+    ref.watch(medsRepositoryProvider),
   ),
 );
 
@@ -217,3 +224,26 @@ final medIdsForEpisodeProvider = FutureProvider.family<List<String>, String>((
 final periodStartsProvider = FutureProvider<List<LocalDay>>(
   (ref) => ref.watch(dailyLogRepositoryProvider).periodStarts(),
 );
+
+/// Intake over the last 30 days, per medication.
+final medIntakeProvider = FutureProvider<List<MedIntake>>(
+  (ref) => ref.watch(medsRepositoryProvider).intake(),
+);
+
+/// Every dose, newest first, so a mistake noticed later can be corrected.
+final recentDosesProvider = FutureProvider<List<MedDose>>(
+  (ref) => ref.watch(medsRepositoryProvider).recentDoses(),
+);
+
+/// Call after adding, removing or editing a medication or a dose.
+///
+/// Doses feed the rescue-use insight and the export as well as the intake
+/// figures, so this is deliberately broad.
+void invalidateMedData(WidgetRef ref) {
+  ref.invalidate(medsProvider);
+  ref.invalidate(activeMedsProvider);
+  ref.invalidate(medIntakeProvider);
+  ref.invalidate(recentDosesProvider);
+  ref.invalidate(medIdsForEpisodeProvider);
+  ref.invalidate(insightsProvider);
+}

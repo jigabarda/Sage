@@ -134,6 +134,107 @@ void main() {
     expect(doses.single['episode_id'], isNull);
   });
 
+  group('v1 to v2', () {
+    /// A v1 `meds` table: everything the current one has except
+    /// monthly_limit_days, which v2 adds.
+    Future<Database> openV1() => databaseFactory.openDatabase(
+      '${dir.path}/sage.db',
+      options: OpenDatabaseOptions(
+        version: 1,
+        onConfigure: (db) => db.execute('PRAGMA foreign_keys = OFF'),
+        onCreate: (db, _) async {
+          await SageDatabase.createSchema(db);
+          // Rebuild `meds` as it was at v1, so the upgrade has something real
+          // to alter rather than a table that already has the column.
+          await db.execute('DROP TABLE med_doses');
+          await db.execute('DROP TABLE meds');
+          await db.execute('''
+            CREATE TABLE meds (
+              id         TEXT    PRIMARY KEY,
+              name       TEXT    NOT NULL,
+              dose_text  TEXT    NOT NULL DEFAULT '',
+              kind       TEXT    NOT NULL,
+              active     INTEGER NOT NULL DEFAULT 1,
+              created_at INTEGER NOT NULL
+            );
+          ''');
+          await db.execute('''
+            CREATE TABLE med_doses (
+              id         TEXT    PRIMARY KEY,
+              med_id     TEXT    NOT NULL REFERENCES meds(id) ON DELETE CASCADE,
+              taken_at   INTEGER NOT NULL,
+              episode_id TEXT    REFERENCES episodes(id) ON DELETE SET NULL
+            );
+          ''');
+        },
+        onOpen: (db) => db.execute('PRAGMA foreign_keys = ON'),
+      ),
+    );
+
+    test('the upgrade adds the column and keeps every row', () async {
+      final v1 = await openV1();
+      await v1.insert('episodes', _episode('ep_1'));
+      await v1.insert('meds', {
+        'id': 'med_1',
+        'name': 'Ibuprofen',
+        'dose_text': 'two at onset',
+        'kind': 'rescue',
+        'active': 1,
+        'created_at': 1000,
+      });
+      await v1.insert('med_doses', {
+        'id': 'dose_1',
+        'med_id': 'med_1',
+        'taken_at': 2000,
+        'episode_id': 'ep_1',
+      });
+      await v1.close();
+
+      // Through the production path, so the pragma sequence is what runs.
+      final v2 = await openFresh();
+      addTearDown(v2.close);
+
+      expect(await v2.getVersion(), SageDatabase.schemaVersion);
+
+      final med = (await v2.query('meds')).single;
+      expect(med['name'], 'Ibuprofen');
+      expect(med['dose_text'], 'two at onset');
+      // Added by the migration, and null rather than 0: no limit set is not a
+      // limit of zero, and the app must never invent one.
+      expect(med['monthly_limit_days'], isNull);
+
+      expect(await v2.query('med_doses'), hasLength(1));
+      expect(await v2.query('episodes'), hasLength(1));
+    });
+
+    test('the upgrade does not cascade anything away', () async {
+      // The pragma sequence exists for this. If foreign keys were on during
+      // the upgrade, a table rebuild would take the children with it.
+      final v1 = await openV1();
+      await v1.insert('episodes', _episode('ep_1'));
+      await v1.insert('episode_symptoms', {
+        'episode_id': 'ep_1',
+        'symptom_code': 'nausea',
+      });
+      await v1.close();
+
+      final v2 = await openFresh();
+      addTearDown(v2.close);
+      expect(await v2.query('episode_symptoms'), hasLength(1));
+    });
+
+    test('a fresh install is not put through the v2 step', () async {
+      // createSchema already declares monthly_limit_days, so an unguarded
+      // ALTER would fail on a duplicate column for a brand-new database.
+      final db = await openFresh();
+      addTearDown(db.close);
+      final info = await db.rawQuery('PRAGMA table_info(meds)');
+      final columns = info.map((r) => r['name']).toList();
+      expect(columns, contains('monthly_limit_days'));
+      expect(columns.where((c) => c == 'monthly_limit_days'), hasLength(1));
+    });
+  });
+
   test('an unrecorded daily_log measure stays null, never zero', () async {
     final db = await openFresh();
     addTearDown(db.close);

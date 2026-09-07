@@ -4,6 +4,7 @@ import 'package:sage/core/dates.dart';
 import 'package:sage/data/db/sage_database.dart';
 import 'package:sage/data/export/export_service.dart';
 import 'package:sage/data/insights/insights_service.dart';
+import 'package:sage/data/repositories/meds_repository.dart';
 import 'package:sage/data/models/daily_log.dart';
 import 'package:sage/data/models/episode.dart';
 import 'package:sage/data/repositories/daily_log_repository.dart';
@@ -33,7 +34,7 @@ void main() {
 
     final episodes = EpisodeRepository(db);
     final daily = DailyLogRepository(db);
-    final export = ExportService(db, InsightsService(db));
+    final export = ExportService(db, InsightsService(db), MedsRepository(db));
 
     DateTime ago(int days, {int hour = 9}) {
       final d = DateTime.now().subtract(Duration(days: days));
@@ -46,6 +47,7 @@ void main() {
       'dose_text': '400, two at onset',
       'kind': 'rescue',
       'active': 1,
+      'monthly_limit_days': 10,
       'created_at': 0,
     });
 

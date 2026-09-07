@@ -7,6 +7,7 @@ import '../../constants/symptoms.dart';
 import '../../constants/triggers.dart';
 import '../../core/dates.dart';
 import '../insights/insights_service.dart';
+import '../repositories/meds_repository.dart';
 
 final _date = DateFormat('yyyy-MM-dd');
 final _dateLong = DateFormat('d MMMM yyyy');
@@ -36,10 +37,11 @@ final _stamp = DateFormat('yyyy-MM-dd HH:mm');
 ///   exactly the sort of thing worth a doctor seeing, and it cannot be
 ///   reconstructed from the episode rows.
 class ExportService {
-  ExportService(this._db, this._insights);
+  ExportService(this._db, this._insights, this._meds);
 
   final Database _db;
   final InsightsService _insights;
+  final MedsRepository _meds;
 
   /// A suggested filename. Dated so two exports do not overwrite each other.
   String get suggestedFileName =>
@@ -208,44 +210,44 @@ class ExportService {
   }
 
   Future<void> _medications(StringBuffer b) async {
-    final rows = await _db.query('meds', orderBy: 'name ASC');
+    final intake = await _meds.intake();
     b.writeln('MEDICATIONS THE PERSON RECORDED');
-    if (rows.isEmpty) {
+    if (intake.isEmpty) {
       b.writeln('  None recorded.');
       b.writeln();
       return;
     }
-    b.writeln(
-      '  Names and doses below are free text the person typed. The app',
-    );
-    b.writeln('  does not suggest, complete or check them, and they are not a');
+    b.writeln('  Names, doses and any limit below are the words and figures');
+    b.writeln('  the person entered themselves. The app does not suggest,');
+    b.writeln('  complete or check any of it, and a limit shown here is one');
+    b.writeln('  they set, not one the app has a view on. This is not a');
     b.writeln('  prescription record.');
     b.writeln();
-    for (final r in rows) {
-      final dose = (r['dose_text'] as String?) ?? '';
-      final kind = r['kind'] == 'preventive' ? 'preventive' : 'rescue';
-      final active = (r['active'] as int? ?? 1) == 1 ? '' : ' (no longer used)';
-      final doses =
-          (await _db.rawQuery(
-                'SELECT COUNT(*) AS n FROM med_doses WHERE med_id = ?',
-                [r['id']],
-              )).single['n']
-              as int? ??
-          0;
+
+    for (final i in intake) {
+      final med = i.med;
+      final dose = med.doseText;
+      final active = med.active ? '' : ' (no longer used)';
       b.writeln(
-        '  - ${r['name']}'
-        '${dose.isEmpty ? '' : ' — "$dose"'} [$kind]$active',
+        '  - ${med.name}'
+        '${dose.isEmpty ? '' : ' — "$dose"'} [${med.kind.code}]$active',
       );
-      // Only doses the person recorded against an episode. Preventive
-      // medication taken daily is not logged, so a low number here means
-      // "not recorded", never "not taken" - said plainly below so a
-      // clinician does not read the gap as data.
-      b.writeln('      $doses ${doses == 1 ? 'dose' : 'doses'} recorded');
+      // Days used rather than doses, because that is the unit a limit is
+      // given in. Two tablets in one afternoon is one day.
+      b.write(
+        '      used on ${i.days} of the last ${i.windowDays} days '
+        '(${i.doses} ${i.doses == 1 ? 'dose' : 'doses'})',
+      );
+      if (i.limit != null) {
+        // Named as theirs. The app has no view on what a safe figure is.
+        b.write(', against a self-set limit of ${i.limit}');
+      }
+      b.writeln();
     }
     b.writeln();
-    b.writeln('  Doses are only recorded when attached to an episode. A low');
-    b.writeln('  count means it was not logged, not that it was not taken -');
-    b.writeln('  regular preventive medication in particular is not tracked.');
+    // Said plainly so a clinician does not read a gap as data.
+    b.writeln('  A dose only appears here if it was recorded. A low count');
+    b.writeln('  means it was not logged, not that it was not taken.');
     b.writeln();
   }
 
