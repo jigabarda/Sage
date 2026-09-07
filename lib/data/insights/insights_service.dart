@@ -4,6 +4,7 @@ import 'package:sqflite/sqflite.dart';
 import '../../constants/episode_kind.dart';
 import '../../constants/relievers.dart';
 import '../../core/dates.dart';
+import 'cycle.dart';
 import 'day_conditions.dart';
 import 'insight.dart';
 
@@ -165,6 +166,7 @@ class InsightsService {
       ...?await _weekdayFinding(kind),
       ...?await _frequencyFinding(kind),
       ...?await _relieverFinding(kind),
+      ...?await _menstrualFinding(kind),
     ];
     out.sort((a, b) => a.strength.index.compareTo(b.strength.index));
     return out;
@@ -434,6 +436,83 @@ class InsightsService {
       );
     }
     return out.isEmpty ? null : out;
+  }
+
+  // ---------------------------------------------------------------------
+  // Rule: episodes cluster around a period
+  // ---------------------------------------------------------------------
+
+  /// Menstrual migraine is one of the strongest patterns there is, and one
+  /// people are most often told about rather than shown in their own numbers.
+  ///
+  /// Only runs when cycle tracking has been used. It is opt-in, and a person
+  /// who never records a period simply never sees this.
+  Future<List<Insight>?> _menstrualFinding(EpisodeKind kind) async {
+    final startRows = await _db.rawQuery(
+      'SELECT local_day FROM daily_log WHERE cycle_day = 1 ORDER BY local_day',
+    );
+    final starts = startRows
+        .map((r) => r['local_day']! as int)
+        .toList(growable: false);
+
+    final span = Cycle.classifiableSpan(starts);
+    if (span == null) return null;
+
+    final window = Cycle.perimenstrualDays(starts);
+    final days = daysInclusive(span.$1, span.$2);
+
+    // Days with an episode, not episodes, so the figure is a proportion
+    // someone can picture.
+    final episodeDays = <LocalDay>{};
+    final rows = await _db.rawQuery(
+      'SELECT DISTINCT started_day FROM episodes '
+      'WHERE kind = ? AND started_day >= ? AND started_day <= ?',
+      [kind.code, span.$1, span.$2],
+    );
+    for (final r in rows) {
+      episodeDays.add(r['started_day']! as int);
+    }
+
+    var daysWith = 0, daysWithout = 0, epWith = 0, epWithout = 0;
+    for (final d in days) {
+      final around = window.contains(d);
+      if (around) {
+        daysWith++;
+        if (episodeDays.contains(d)) epWith++;
+      } else {
+        daysWithout++;
+        if (episodeDays.contains(d)) epWithout++;
+      }
+    }
+
+    if (daysWith < minDaysEachSide || daysWithout < minDaysEachSide) {
+      return null;
+    }
+    if (epWith < minEpisodesOnCondition) return null;
+
+    final rateWith = epWith / daysWith;
+    final rateWithout = epWithout / daysWithout;
+    if (rateWithout == 0) {
+      if (rateWith < 0.4) return null;
+    } else if (rateWith / rateWithout < minLift) {
+      return null;
+    }
+    final lift = rateWithout == 0 ? double.infinity : rateWith / rateWithout;
+
+    return [
+      Insight(
+        id: 'cycle_${kind.code}',
+        strength: lift >= strongLift
+            ? InsightStrength.strong
+            : InsightStrength.moderate,
+        icon: Icons.calendar_month,
+        title: '${kind.label} and your cycle',
+        detail:
+            'You had ${kind.inSentence} on $epWith of the $daysWith days around '
+            'a period, against $epWithout of the $daysWithout days in between. '
+            'Counted from ${starts.length} periods you recorded.',
+      ),
+    ];
   }
 
   // ---------------------------------------------------------------------

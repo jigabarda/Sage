@@ -7,6 +7,7 @@ import 'package:sage/core/sage_theme.dart';
 import 'package:sage/data/db/sage_database.dart';
 import 'package:sage/data/models/episode.dart';
 import 'package:sage/data/repositories/episode_repository.dart';
+import 'package:sage/data/settings/cycle_tracking.dart';
 import 'package:sage/features/backup/backup_screen.dart';
 import 'package:sage/features/daily/daily_log_screen.dart';
 import 'package:sage/features/export/export_screen.dart';
@@ -44,7 +45,9 @@ void main() {
   late SharedPreferences prefs;
 
   setUp(() async {
-    SharedPreferences.setMockInitialValues({});
+    // Cycle tracking on, so the daily log renders its optional section too.
+    // Off by default in the app, which would leave it untested here.
+    SharedPreferences.setMockInitialValues({'track_cycle': true});
     prefs = await SharedPreferences.getInstance();
     db = await databaseFactory.openDatabase(
       inMemoryDatabasePath,
@@ -79,6 +82,9 @@ void main() {
       overrides: [
         databaseProvider.overrideWithValue(db),
         sharedPreferencesProvider.overrideWithValue(prefs),
+        cycleTrackingProvider.overrideWith(
+          (ref) => CycleTrackingController(prefs),
+        ),
       ],
       child: MaterialApp(
         theme: buildSageTheme(Brightness.light, BrandPalette.olive),
