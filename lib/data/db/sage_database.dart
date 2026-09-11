@@ -19,7 +19,7 @@ class SageDatabase {
   /// learned that a private copy of this number is exactly how the two drift
   /// apart: a comment asks whoever bumps one to bump the other, and eventually
   /// nobody does.
-  static const schemaVersion = 1;
+  static const schemaVersion = 2;
 
   static Future<Database> open() async {
     final dir = await getApplicationDocumentsDirectory();
@@ -78,9 +78,18 @@ class SageDatabase {
     if (oldVersion < 1) {
       await createSchema(db);
     }
-    // Next migration goes here as `if (oldVersion < 2) { ... }`, together with
-    // a case in test/migration_test.dart driving v1 -> v2 through
-    // openOptions() against a real temp file.
+    // Guarded on oldVersion >= 1: anything older had `meds` created a moment
+    // ago by `createSchema`, which already declares the column. ALTERing again
+    // would fail on a duplicate.
+    if (oldVersion >= 1 && oldVersion < 2) {
+      await db.execute(
+        'ALTER TABLE meds ADD COLUMN monthly_limit_days INTEGER',
+      );
+    }
+    // Next migration goes here as `if (oldVersion >= 2 && oldVersion < 3)`,
+    // together with a case in test/migration_test.dart driving each still
+    // plausible old version forward through openOptions() against a real
+    // temp file.
   }
 
   /// Creates the current schema from nothing.
@@ -184,6 +193,13 @@ class SageDatabase {
         dose_text  TEXT    NOT NULL DEFAULT '',
         kind       TEXT    NOT NULL,
         active     INTEGER NOT NULL DEFAULT 1,
+        -- Days per month the person is aiming to stay under. NULL means no
+        -- limit set, which is different from a limit of zero.
+        --
+        -- The app never fills this in. A number here came from the user or
+        -- from what their doctor told them, and the app only counts against
+        -- it - see the note on Med.monthlyLimitDays.
+        monthly_limit_days INTEGER,
         created_at INTEGER NOT NULL
       );
     ''');

@@ -580,9 +580,14 @@ update, wiping their log.
 
 ## AI Agent Operating Instructions
 
+`CLAUDE.md` at the repository root carries the git and GitHub conventions —
+identity, no attribution, branch per phase, no emoji in PRs — and the
+pre-PR checklist. Read it first; it exists so a session on a different account
+or tool starts from the same rules.
+
 Before making changes:
 
-1. Read this file.
+1. Read this file and `CLAUDE.md`.
 2. For anything touching design system, database, migrations, insights, or
    export — read the matching section of
    `../sellora_mobile/SELLORA_MOBILE_PROJECT_GUIDE.md` first. The patterns are
@@ -622,10 +627,8 @@ order they matter:
 2. **Tier 3 is deferred** and may never be built. See The Online Assistant.
 3. **Type is the platform font.** Bundled families were deferred in Phase 0 and
    never revisited.
-4. **Preventive doses are not logged.** Only medication attached to an episode
-   is recorded, so a preventive taken daily leaves no trace. The export says so
-   plainly, because a clinician must not read the gap as evidence it was not
-   taken.
+4. ~~Preventive doses are not logged.~~ **Closed in Phase 11** — any dose can
+   now be recorded on its own.
 
 ## Open Questions
 
@@ -662,6 +665,59 @@ Decide before the phase that needs them:
 | 2 — Safety and in-attack help | **Built.** Branch `phase-2-safety`. |
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
+
+### What Phase 11 added
+
+Asked for directly: someone using the app wants to track medication intake in
+order to control it. Phase 9 only recorded doses attached to an episode, which
+undercounts by however much the person does not feel like logging an attack.
+
+- **Schema v2** — `meds.monthly_limit_days`, the first real migration.
+- Standalone dose logging: `MedsRepository.recordDose`, with no episode.
+- Per-medication intake over a rolling 30 days, on the Medications screen.
+- A recent-dose list, so a mistake noticed later can still be removed.
+- Intake in the doctor export.
+
+**The unit is days used, not doses**, because that is how a limit is given.
+Two tablets in one afternoon is one day.
+
+**The window is rolling, not calendar.** "Ten days a month" resets mentally on
+the 1st, and a calendar window would hand someone a clean slate on a date that
+means nothing physiologically — hiding exactly the sustained pattern this is
+for.
+
+#### The limit is the person's, and never the app's
+
+`monthly_limit_days` is null until someone fills it in, and the app never
+suggests a value. How many days of a given medication is too many is a clinical
+question with different answers for different drugs; a default here would be
+the app quietly issuing medical advice, which non-negotiable 6 forbids.
+
+A number in that field came from the person or from what their doctor told
+them. All the app does is count against it — "used on 12 of the last 30 days,
+against the 10 you set" is arithmetic on their own target, not a judgement of
+the app's own. The export labels it a self-set limit for the same reason.
+
+Null is not zero, and there are tests for both: with no limit set there is
+nothing to be over, and a limit of nought is a real limit someone can exceed.
+Being *at* the limit is not over it.
+
+Going over uses `severityHigh`, not `alert`. Alert is reserved for red-flag
+escalation, and spending it on a self-set target would blunt the one signal
+that must never be ignorable.
+
+#### The first migration
+
+v1 to v2 is a single additive `ALTER`, guarded on `oldVersion >= 1` so a fresh
+install — where `createSchema` already declares the column — does not run it
+and fail on a duplicate. Three tests drive a hand-built v1 database forward
+through `openOptions()`: the column arrives and every row survives, nothing
+cascades away, and a fresh install ends up with exactly one copy of the column.
+
+It also gave the backup its first real older-version file to restore. A v1
+backup has no `monthly_limit_days`; the column takes its schema default rather
+than the restore failing, which is the additive case `BackupService` was
+written for and could not be proven until now.
 
 ### What Phase 10 added
 
@@ -1032,6 +1088,7 @@ Three rules encoded in code that are easy to undo by accident:
 | 8 — Backup and restore | **Built.** Branch `phase-8-backup`. Added after the original roadmap. |
 | 9 — Medications | **Built.** Branch `phase-9-medications`. |
 | 10 — Cycle tracking | **Built.** Branch `phase-10-cycle`. |
+| 11 — Medication intake | **Built.** Branch `phase-11-intake`. Schema v2. |
 
 ### What Phase 0 actually laid down
 

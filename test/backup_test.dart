@@ -271,6 +271,54 @@ void main() {
     });
   });
 
+  test('a backup from an older schema restores into the current one', () async {
+    // The additive-migration case the restore was written for, now that there
+    // is a real older version to try it with. A v1 file has no
+    // monthly_limit_days; the column takes its schema default rather than the
+    // restore failing.
+    final v1 = jsonEncode({
+      'app': 'sage',
+      'schemaVersion': 1,
+      'tables': {
+        for (final t in BackupService.insertOrder) t: <Object?>[],
+        'meds': [
+          {
+            'id': 'med_1',
+            'name': 'Ibuprofen',
+            'dose_text': 'two at onset',
+            'kind': 'rescue',
+            'active': 1,
+            'created_at': 1000,
+          },
+        ],
+      },
+    });
+
+    final summary = await backup.restore(v1);
+    expect(summary.schemaVersion, 1);
+
+    final med = (await db.query('meds')).single;
+    expect(med['name'], 'Ibuprofen');
+    // Absent from the file, so null - which is "no limit set", not zero.
+    expect(med['monthly_limit_days'], isNull);
+  });
+
+  test('a limit survives a round trip', () async {
+    await db.insert('meds', {
+      'id': 'med_1',
+      'name': 'Ibuprofen',
+      'dose_text': '',
+      'kind': 'rescue',
+      'active': 1,
+      'monthly_limit_days': 10,
+      'created_at': 0,
+    });
+    final json = await backup.export();
+    await backup.restore(json);
+
+    expect((await db.query('meds')).single['monthly_limit_days'], 10);
+  });
+
   test('the filename is dated', () {
     expect(
       backup.suggestedFileName,

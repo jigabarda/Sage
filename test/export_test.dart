@@ -4,6 +4,7 @@ import 'package:sage/core/dates.dart';
 import 'package:sage/data/db/sage_database.dart';
 import 'package:sage/data/export/export_service.dart';
 import 'package:sage/data/insights/insights_service.dart';
+import 'package:sage/data/repositories/meds_repository.dart';
 import 'package:sage/data/models/daily_log.dart';
 import 'package:sage/data/models/episode.dart';
 import 'package:sage/data/repositories/daily_log_repository.dart';
@@ -28,7 +29,7 @@ void main() {
       inMemoryDatabasePath,
       options: SageDatabase.openOptions(),
     );
-    export = ExportService(db, InsightsService(db));
+    export = ExportService(db, InsightsService(db), MedsRepository(db));
     episodes = EpisodeRepository(db);
     daily = DailyLogRepository(db);
     triage = TriageService(db);
@@ -137,8 +138,9 @@ void main() {
 
         final r = await export.buildReport();
         expect(r, contains('two in the morning'));
-        expect(r, contains('free text the person typed'));
-        expect(r, contains('not a'));
+        // Attributed to the person, and explicitly not a prescription record.
+        expect(r, contains('the person entered themselves'));
+        expect(r, contains('does not suggest'));
         expect(r, contains('prescription record'));
       },
     );

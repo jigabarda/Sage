@@ -40,6 +40,7 @@ class Med {
     required this.doseText,
     required this.kind,
     required this.active,
+    required this.monthlyLimitDays,
     required this.createdAt,
   });
 
@@ -53,6 +54,24 @@ class Med {
   /// doses away and rewrite history.
   final bool active;
 
+  /// Days in a 30-day window the person is aiming to stay under, or null for
+  /// no limit set.
+  ///
+  /// **The app never fills this in, and never suggests a value.** How many
+  /// days of a given medication is too many is a clinical question with
+  /// different answers for different drugs — a default here would be the app
+  /// quietly issuing medical advice, which is exactly what non-negotiable 6
+  /// forbids.
+  ///
+  /// A number in this field came from the person or from what their doctor
+  /// told them. All the app does is count against it, so "you have used this
+  /// on 12 of the last 30 days, against the 10 you set" is arithmetic on their
+  /// own target rather than a judgement of the app's own.
+  ///
+  /// Null is not zero. No limit set means the count is still shown, without
+  /// anything to compare it to.
+  final int? monthlyLimitDays;
+
   final DateTime createdAt;
 
   factory Med.fromRow(Map<String, Object?> row) => Med(
@@ -61,6 +80,7 @@ class Med {
     doseText: (row['dose_text'] as String?) ?? '',
     kind: MedKind.fromCode(row['kind'] as String?),
     active: (row['active'] as int? ?? 1) == 1,
+    monthlyLimitDays: row['monthly_limit_days'] as int?,
     createdAt: DateTime.fromMillisecondsSinceEpoch(row['created_at']! as int),
   );
 
@@ -70,6 +90,68 @@ class Med {
     'dose_text': doseText,
     'kind': kind.code,
     'active': active ? 1 : 0,
+    'monthly_limit_days': monthlyLimitDays,
     'created_at': createdAt.millisecondsSinceEpoch,
   };
+}
+
+/// One dose, as recorded.
+@immutable
+class MedDose {
+  const MedDose({
+    required this.id,
+    required this.medId,
+    required this.takenAt,
+    required this.episodeId,
+  });
+
+  final String id;
+  final String medId;
+  final DateTime takenAt;
+
+  /// Null for a dose logged on its own rather than against an episode — a
+  /// preventive taken daily, or a rescue taken without logging an attack.
+  final String? episodeId;
+
+  factory MedDose.fromRow(Map<String, Object?> row) => MedDose(
+    id: row['id']! as String,
+    medId: row['med_id']! as String,
+    takenAt: DateTime.fromMillisecondsSinceEpoch(row['taken_at']! as int),
+    episodeId: row['episode_id'] as String?,
+  );
+}
+
+/// How much of one medication has been taken lately.
+@immutable
+class MedIntake {
+  const MedIntake({
+    required this.med,
+    required this.doses,
+    required this.days,
+    required this.windowDays,
+    required this.lastTaken,
+  });
+
+  final Med med;
+
+  /// Doses in the window. Two in one day is two doses and one day.
+  final int doses;
+
+  /// Distinct days with at least one dose. This is the figure a limit is
+  /// expressed in, because that is how limits are given.
+  final int days;
+
+  final int windowDays;
+  final DateTime? lastTaken;
+
+  int? get limit => med.monthlyLimitDays;
+
+  /// Whether [days] has passed the limit the person set.
+  ///
+  /// False when no limit is set — the app has no opinion of its own to
+  /// compare against.
+  bool get overLimit => limit != null && days > limit!;
+
+  /// Days left before the person's own limit is reached, or null if none set.
+  int? get remaining => limit == null ? null : (limit! - days);
 }

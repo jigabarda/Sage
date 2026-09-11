@@ -39,10 +39,19 @@ class MedsRepository {
     return rows.isEmpty ? null : Med.fromRow(rows.single);
   }
 
+  /// The window every intake figure is reported over.
+  ///
+  /// Rolling rather than calendar. A limit expressed as "ten days a month"
+  /// resets mentally on the 1st, and a calendar window would hand someone a
+  /// clean slate on a date that means nothing physiologically — hiding exactly
+  /// the sustained pattern this is for.
+  static const windowDays = 30;
+
   Future<String> create({
     required String name,
     String doseText = '',
     required MedKind kind,
+    int? monthlyLimitDays,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -57,6 +66,8 @@ class MedsRepository {
       'dose_text': doseText.trim(),
       'kind': kind.code,
       'active': 1,
+      // Null unless the person gave one. The app never invents a limit.
+      'monthly_limit_days': monthlyLimitDays,
       'created_at': DateTime.now().millisecondsSinceEpoch,
     });
     return id;
@@ -68,6 +79,7 @@ class MedsRepository {
     required String doseText,
     required MedKind kind,
     required bool active,
+    int? monthlyLimitDays,
   }) async {
     final trimmed = name.trim();
     if (trimmed.isEmpty) {
@@ -80,6 +92,7 @@ class MedsRepository {
         'dose_text': doseText.trim(),
         'kind': kind.code,
         'active': active ? 1 : 0,
+        'monthly_limit_days': monthlyLimitDays,
       },
       where: 'id = ?',
       whereArgs: [id],
@@ -103,6 +116,88 @@ class MedsRepository {
   /// offers [deactivate] first.
   Future<void> delete(String id) =>
       _db.delete('meds', where: 'id = ?', whereArgs: [id]);
+
+  /// Records a dose taken on its own, with no episode attached.
+  ///
+  /// The gap Phase 9 left: a preventive taken every morning, or a rescue taken
+  /// without logging an attack, previously had nowhere to go. Intake figures
+  /// built only from episode-linked doses undercount by however much someone
+  /// does not feel like logging.
+  Future<String> recordDose(String medId, {DateTime? at}) async {
+    final id = newLocalId('dose');
+    await _db.insert('med_doses', {
+      'id': id,
+      'med_id': medId,
+      'taken_at': (at ?? DateTime.now()).millisecondsSinceEpoch,
+      'episode_id': null,
+    });
+    return id;
+  }
+
+  Future<void> deleteDose(String doseId) =>
+      _db.delete('med_doses', where: 'id = ?', whereArgs: [doseId]);
+
+  /// Doses of one medication, newest first.
+  Future<List<MedDose>> dosesFor(String medId, {int limit = 200}) async {
+    final rows = await _db.query(
+      'med_doses',
+      where: 'med_id = ?',
+      whereArgs: [medId],
+      orderBy: 'taken_at DESC',
+      limit: limit,
+    );
+    return rows.map(MedDose.fromRow).toList(growable: false);
+  }
+
+  /// Every dose across all medications, newest first.
+  Future<List<MedDose>> recentDoses({int limit = 200}) async {
+    final rows = await _db.query(
+      'med_doses',
+      orderBy: 'taken_at DESC',
+      limit: limit,
+    );
+    return rows.map(MedDose.fromRow).toList(growable: false);
+  }
+
+  /// Intake over the last [windowDays] for every medication that has any.
+  ///
+  /// Inactive medications are included when they have doses in the window —
+  /// stopping something last week does not remove it from this month's
+  /// picture.
+  Future<List<MedIntake>> intake({DateTime? now}) async {
+    final at = now ?? DateTime.now();
+    final from = startOfDay(
+      localDayOf(at) - (windowDays - 1),
+    ).millisecondsSinceEpoch;
+
+    final out = <MedIntake>[];
+    for (final med in await all()) {
+      final rows = await _db.rawQuery(
+        'SELECT COUNT(*) AS doses,'
+        ' COUNT(DISTINCT CAST((taken_at - ?) / 86400000 AS INTEGER)) AS days,'
+        ' MAX(taken_at) AS last'
+        ' FROM med_doses WHERE med_id = ? AND taken_at >= ?',
+        [from, med.id, from],
+      );
+      final r = rows.single;
+      final doses = (r['doses'] as int?) ?? 0;
+      if (doses == 0 && !med.active) continue;
+
+      final last = r['last'] as int?;
+      out.add(
+        MedIntake(
+          med: med,
+          doses: doses,
+          days: (r['days'] as int?) ?? 0,
+          windowDays: windowDays,
+          lastTaken: last == null
+              ? null
+              : DateTime.fromMillisecondsSinceEpoch(last),
+        ),
+      );
+    }
+    return out;
+  }
 
   Future<int> doseCount(String medId) async {
     final rows = await _db.rawQuery(
