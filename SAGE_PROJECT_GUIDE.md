@@ -580,9 +580,14 @@ update, wiping their log.
 
 ## AI Agent Operating Instructions
 
+`CLAUDE.md` at the repository root carries the git and GitHub conventions —
+identity, no attribution, branch per phase, no emoji in PRs — and the
+pre-PR checklist. Read it first; it exists so a session on a different account
+or tool starts from the same rules.
+
 Before making changes:
 
-1. Read this file.
+1. Read this file and `CLAUDE.md`.
 2. For anything touching design system, database, migrations, insights, or
    export — read the matching section of
    `../sellora_mobile/SELLORA_MOBILE_PROJECT_GUIDE.md` first. The patterns are
