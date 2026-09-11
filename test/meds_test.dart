@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sage/constants/episode_kind.dart';
+import 'package:sage/core/dates.dart';
 import 'package:sage/data/db/sage_database.dart';
 import 'package:sage/data/insights/insights_service.dart';
 import 'package:sage/data/models/med.dart';
@@ -450,6 +451,130 @@ void main() {
         monthlyLimitDays: null,
       );
       expect((await meds.byId(id))!.monthlyLimitDays, isNull);
+    });
+  });
+
+  group('the calendar', () {
+    test('doses are grouped by local day, including near midnight', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      final day = DateTime(2026, 9, 7);
+      await meds.recordDose(medId, at: DateTime(2026, 9, 7, 0, 30));
+      await meds.recordDose(medId, at: DateTime(2026, 9, 7, 23, 30));
+      await meds.recordDose(medId, at: DateTime(2026, 9, 8, 7, 30));
+
+      final byDay = await meds.dosesByDay(
+        localDayOf(day),
+        localDayOf(DateTime(2026, 9, 8)),
+      );
+      // 00:30 and 23:30 on the 7th are the same local day. Grouping by UTC
+      // date would split them, and put 07:30 on the 8th into the 7th's cell
+      // in any zone east of UTC.
+      expect(byDay[localDayOf(day)], hasLength(2));
+      expect(byDay[localDayOf(DateTime(2026, 9, 8))], hasLength(1));
+    });
+
+    test('days with nothing are absent, not empty lists', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await meds.recordDose(medId, at: DateTime(2026, 9, 3, 10));
+
+      final byDay = await meds.dosesByDay(
+        localDayOf(DateTime(2026, 9, 1)),
+        localDayOf(DateTime(2026, 9, 30)),
+      );
+      expect(byDay.keys, [localDayOf(DateTime(2026, 9, 3))]);
+    });
+
+    test('the range is inclusive of the last day and nothing after', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await meds.recordDose(medId, at: DateTime(2026, 9, 30, 23, 59));
+      await meds.recordDose(medId, at: DateTime(2026, 10, 1, 0, 0));
+      await meds.recordDose(medId, at: DateTime(2026, 8, 31, 23, 59));
+
+      final byDay = await meds.dosesByDay(
+        localDayOf(DateTime(2026, 9, 1)),
+        localDayOf(DateTime(2026, 9, 30)),
+      );
+      expect(byDay.values.expand((d) => d), hasLength(1));
+      expect(byDay.keys.single, localDayOf(DateTime(2026, 9, 30)));
+    });
+
+    test('can be narrowed to one medication', () async {
+      final a = await meds.create(name: 'A', kind: MedKind.rescue);
+      final b = await meds.create(name: 'B', kind: MedKind.preventive);
+      await meds.recordDose(a, at: DateTime(2026, 9, 2, 9));
+      await meds.recordDose(b, at: DateTime(2026, 9, 2, 9));
+      await meds.recordDose(b, at: DateTime(2026, 9, 4, 9));
+
+      final from = localDayOf(DateTime(2026, 9, 1));
+      final to = localDayOf(DateTime(2026, 9, 30));
+      final all = await meds.dosesByDay(from, to);
+      final onlyB = await meds.dosesByDay(from, to, medId: b);
+
+      expect(all.values.expand((d) => d), hasLength(3));
+      expect(onlyB.values.expand((d) => d).every((d) => d.medId == b), isTrue);
+      expect(onlyB.values.expand((d) => d), hasLength(2));
+    });
+
+    test('episode-linked and standalone doses both appear', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      await episodes.create(
+        kind: EpisodeKind.migraine,
+        startedAt: DateTime(2026, 9, 5, 14),
+        severity: 6,
+        medIds: [medId],
+      );
+      await meds.recordDose(medId, at: DateTime(2026, 9, 6, 9));
+
+      final byDay = await meds.dosesByDay(
+        localDayOf(DateTime(2026, 9, 1)),
+        localDayOf(DateTime(2026, 9, 30)),
+      );
+      expect(byDay, hasLength(2));
+    });
+  });
+
+  group('undoing a removal', () {
+    test('restores the same dose, link included', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      final epId = await episodes.create(
+        kind: EpisodeKind.migraine,
+        startedAt: ago(2),
+        severity: 6,
+        medIds: [medId],
+      );
+      final dose = (await meds.dosesFor(medId)).single;
+
+      await meds.deleteDose(dose.id);
+      await meds.restoreDose(dose);
+
+      final back = (await meds.dosesFor(medId)).single;
+      // Not a new dose: a new one would lose the episode link, and the episode
+      // would quietly stop saying which medication was used.
+      expect(back.id, dose.id);
+      expect(back.takenAt, dose.takenAt);
+      expect(back.episodeId, epId);
+      expect(await meds.medIdsForEpisode(epId), [medId]);
+    });
+
+    test('comes back unlinked if the episode was deleted meanwhile', () async {
+      final medId = await meds.create(name: 'Ibuprofen', kind: MedKind.rescue);
+      final epId = await episodes.create(
+        kind: EpisodeKind.migraine,
+        startedAt: ago(2),
+        severity: 6,
+        medIds: [medId],
+      );
+      final dose = (await meds.dosesFor(medId)).single;
+
+      await meds.deleteDose(dose.id);
+      await episodes.delete(epId);
+      // Foreign keys are on, so restoring the old link would fail outright.
+      // The dose still happened, so it comes back without it.
+      await meds.restoreDose(dose);
+
+      final back = (await meds.dosesFor(medId)).single;
+      expect(back.id, dose.id);
+      expect(back.episodeId, isNull);
     });
   });
 }

@@ -10,6 +10,7 @@ import 'features/guidance/guidance_screen.dart';
 import 'features/patterns/patterns_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/history/history_screen.dart';
+import 'features/meds/med_calendar_screen.dart';
 import 'features/meds/meds_screen.dart';
 import 'features/shell/app_shell.dart';
 import 'features/today/today_screen.dart';
@@ -63,6 +64,12 @@ GoRouter buildRouter() {
         path: '/meds',
         parentNavigatorKey: _rootKey,
         builder: (_, _) => const MedsScreen(),
+      ),
+      GoRoute(
+        path: '/meds/calendar',
+        parentNavigatorKey: _rootKey,
+        builder: (_, state) =>
+            MedCalendarScreen(initialMedId: state.uri.queryParameters['med']),
       ),
       GoRoute(
         path: '/backup',

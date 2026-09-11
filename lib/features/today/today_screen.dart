@@ -10,6 +10,7 @@ import '../../core/sage_tokens.dart';
 import '../../core/sage_ui.dart';
 import '../../data/models/episode.dart';
 import '../../providers.dart';
+import '../meds/med_quick_log.dart';
 
 /// The screen someone opens while an attack is starting.
 ///
@@ -128,6 +129,7 @@ class _TodayScreenState extends ConsumerState<TodayScreen> {
               _StartButton(kind: kind, onTap: () => _startNow(kind)),
               Gap.h12,
             ],
+            const MedQuickLog(),
             Gap.h16,
             _LastHelpedNote(
               kind: episodes.isNotEmpty

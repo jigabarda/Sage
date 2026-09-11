@@ -92,6 +92,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
       // Everything downstream reads the tables that were just replaced.
       invalidateEpisodeData(ref);
       invalidateDailyData(ref);
+      // Meds and doses were replaced too.
+      invalidateMedData(ref);
 
       setState(
         () => _message =
