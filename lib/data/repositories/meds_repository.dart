@@ -134,6 +134,31 @@ class MedsRepository {
     return id;
   }
 
+  /// Puts back a dose that was just removed, exactly as it was.
+  ///
+  /// Backs the Undo on a removal. It keeps the original id, time and episode
+  /// link. If that episode has been deleted in the meantime, the dose comes
+  /// back unlinked rather than failing, because the dose itself still happened.
+  Future<void> restoreDose(MedDose dose) async {
+    String? episodeId = dose.episodeId;
+    if (episodeId != null) {
+      final exists = await _db.query(
+        'episodes',
+        columns: ['id'],
+        where: 'id = ?',
+        whereArgs: [episodeId],
+        limit: 1,
+      );
+      if (exists.isEmpty) episodeId = null;
+    }
+    await _db.insert('med_doses', {
+      'id': dose.id,
+      'med_id': dose.medId,
+      'taken_at': dose.takenAt.millisecondsSinceEpoch,
+      'episode_id': episodeId,
+    }, conflictAlgorithm: ConflictAlgorithm.replace);
+  }
+
   Future<void> deleteDose(String doseId) =>
       _db.delete('med_doses', where: 'id = ?', whereArgs: [doseId]);
 
@@ -195,6 +220,38 @@ class MedsRepository {
               : DateTime.fromMillisecondsSinceEpoch(last),
         ),
       );
+    }
+    return out;
+  }
+
+  /// Every dose from local day [from] to [to] inclusive, keyed by the local day
+  /// it was taken on. Days with nothing are absent from the map.
+  ///
+  /// Grouped by *local* day through `localDayOfMillis`, the same helper every
+  /// other day-based figure uses. Grouping by UTC date instead would put a
+  /// 07:30 dose in Manila on the previous day's cell, and the calendar would
+  /// disagree with the intake count on the screen next to it.
+  ///
+  /// [medId] narrows it to one medication; null means all of them.
+  Future<Map<LocalDay, List<MedDose>>> dosesByDay(
+    LocalDay from,
+    LocalDay to, {
+    String? medId,
+  }) async {
+    final fromMs = startOfDay(from).millisecondsSinceEpoch;
+    final toMs = startOfDay(to + 1).millisecondsSinceEpoch;
+    final rows = await _db.query(
+      'med_doses',
+      where: medId == null
+          ? 'taken_at >= ? AND taken_at < ?'
+          : 'taken_at >= ? AND taken_at < ? AND med_id = ?',
+      whereArgs: medId == null ? [fromMs, toMs] : [fromMs, toMs, medId],
+      orderBy: 'taken_at ASC',
+    );
+    final out = <LocalDay, List<MedDose>>{};
+    for (final r in rows) {
+      final dose = MedDose.fromRow(r);
+      (out[localDayOf(dose.takenAt)] ??= []).add(dose);
     }
     return out;
   }

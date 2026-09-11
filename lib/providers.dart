@@ -89,6 +89,7 @@ void invalidateEpisodeData(WidgetRef ref) {
   ref.invalidate(medIdsForEpisodeProvider);
   ref.invalidate(medIntakeProvider);
   ref.invalidate(recentDosesProvider);
+  ref.invalidate(dosesByDayProvider);
 }
 
 /// Tier 0. Held as a plain provider because `evaluate` is pure and synchronous
@@ -150,6 +151,7 @@ void invalidateDailyData(WidgetRef ref) {
   ref.invalidate(medIdsForEpisodeProvider);
   ref.invalidate(medIntakeProvider);
   ref.invalidate(recentDosesProvider);
+  ref.invalidate(dosesByDayProvider);
 }
 
 /// Overridden in `main.dart`, where SharedPreferences is already open and the
@@ -244,6 +246,27 @@ void invalidateMedData(WidgetRef ref) {
   ref.invalidate(activeMedsProvider);
   ref.invalidate(medIntakeProvider);
   ref.invalidate(recentDosesProvider);
+  ref.invalidate(dosesByDayProvider);
   ref.invalidate(medIdsForEpisodeProvider);
   ref.invalidate(insightsProvider);
 }
+
+/// Which month, and which medication, the calendar is showing.
+typedef DoseCalendarKey = ({int year, int month, String? medId});
+
+/// Doses for one calendar month, keyed by local day.
+///
+/// A record is used as the family key because records compare by value, so
+/// opening the same month twice reuses the cached result instead of querying
+/// again.
+final dosesByDayProvider =
+    FutureProvider.family<Map<LocalDay, List<MedDose>>, DoseCalendarKey>((
+      ref,
+      key,
+    ) {
+      final first = localDayOf(DateTime(key.year, key.month));
+      final last = localDayOf(DateTime(key.year, key.month + 1, 0));
+      return ref
+          .watch(medsRepositoryProvider)
+          .dosesByDay(first, last, medId: key.medId);
+    });

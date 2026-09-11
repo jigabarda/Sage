@@ -76,47 +76,56 @@ class _ExportScreenState extends ConsumerState<ExportScreen> {
         error: (e, _) => SageEmpty(message: 'Could not build the export.\n$e'),
         data: (text) => Column(
           children: [
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(14),
-              margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              decoration: BoxDecoration(
-                color: t.surfaceAlt,
-                borderRadius: Radii.md,
-              ),
-              child: Text(
-                'This is everything that will be sent. Nothing leaves your '
-                'phone until you pick something from the share sheet.',
-                style: context.text.bodySmall?.copyWith(
-                  color: t.inkMuted,
-                  height: 1.4,
-                ),
-              ),
-            ),
+            // The notice scrolls with the preview rather than sitting fixed
+            // above it. Fixed, on a small phone at a large system font, the
+            // notice and the buttons together were taller than the screen and
+            // left the preview no room at all. Only the buttons stay pinned.
             Expanded(
-              child: Container(
-                margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: t.surface,
-                  borderRadius: Radii.md,
-                  border: Border.all(color: t.line),
-                ),
-                // Horizontally scrollable: the report is laid out in fixed
-                // columns and wrapping it would destroy the alignment that
-                // makes it scannable.
-                child: SingleChildScrollView(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: SelectableText(
-                      text,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontSize: 11,
-                        height: 1.4,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: t.surfaceAlt,
+                        borderRadius: Radii.md,
+                      ),
+                      child: Text(
+                        'This is everything that will be sent. Nothing leaves '
+                        'your phone until you pick something from the share '
+                        'sheet.',
+                        style: context.text.bodySmall?.copyWith(
+                          color: t.inkMuted,
+                          height: 1.4,
+                        ),
                       ),
                     ),
-                  ),
+                    Gap.h12,
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: t.surface,
+                        borderRadius: Radii.md,
+                        border: Border.all(color: t.line),
+                      ),
+                      // Horizontally scrollable: the report is laid out in
+                      // fixed columns and wrapping it would destroy the
+                      // alignment that makes it scannable.
+                      child: SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: SelectableText(
+                          text,
+                          style: const TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 11,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ),

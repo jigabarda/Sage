@@ -122,10 +122,14 @@ class _EpisodeRow extends StatelessWidget {
                       children: [
                         Icon(episode.kind.icon, size: 15, color: t.inkMuted),
                         Gap.w4,
-                        Text(
-                          episode.kind.label,
-                          style: context.text.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
+                        // Flexible so a large system font wraps the label
+                        // instead of pushing it off the edge of the row.
+                        Flexible(
+                          child: Text(
+                            episode.kind.label,
+                            style: context.text.bodyMedium?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ),
                       ],

@@ -45,6 +45,18 @@ The fourth one is not optional and not a formality. Check the **merged
 release** manifest, not the source one — a dependency can inject a permission
 this project never declared.
 
+**Widget tests that read the database must wait for it.** sqflite runs on a
+real isolate and `pump` only advances fake time, so a screen pumped normally
+never leaves its loading state. Use `settle()` in `test/layout_test.dart`, and
+assert the spinner is gone. Without that, a test passes while measuring a
+spinner, which is what the layout suite did from Phase 7 to Phase 12.
+
+**Release builds are signed with `C:/Users/Andrei/sage-release.jks`** via
+`android/key.properties` (gitignored, never commit it). If a build ever falls
+back to the debug key, the APK will not install over the client's copy. Check
+the signer with `apksigner verify --print-certs`; it should say
+`CN=James Ivan Gabarda, O=Sage`.
+
 Also run `flutter test test/tools/dump_insights.dart` and
 `flutter test test/tools/dump_export.dart` after touching a rule or the export,
 and **read the output**. Three phases running, that is where a real bug was
@@ -59,7 +71,7 @@ found that no assertion caught.
 - `lib/data/insights/insights_service.dart` — the correlation rules and their
   evidence gates.
 - `lib/data/db/sage_database.dart` — schema and migrations. Currently v2.
-- `test/` — 289 tests. The migration, triage and backup suites are the ones
+- `test/` — 313 tests. The migration, triage and backup suites are the ones
   that must never be weakened.
 
 ## What is outstanding, in order

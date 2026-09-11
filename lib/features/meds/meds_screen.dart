@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/sage_tokens.dart';
@@ -7,6 +8,7 @@ import '../../core/sage_ui.dart';
 import '../../data/models/med.dart';
 import '../../data/repositories/meds_repository.dart';
 import '../../providers.dart';
+import 'dose_actions.dart';
 
 final _doseStamp = DateFormat('d MMM, HH:mm');
 
@@ -41,30 +43,6 @@ class MedsScreen extends ConsumerWidget {
     if (saved == true) invalidateMedData(ref);
   }
 
-  Future<void> _logDose(BuildContext context, WidgetRef ref, Med med) async {
-    final repo = ref.read(medsRepositoryProvider);
-    final doseId = await repo.recordDose(med.id);
-    invalidateMedData(ref);
-    if (!context.mounted) return;
-
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: Text('${med.name} recorded.'),
-          // A mis-tap on a one-tap logger has to be reversible immediately.
-          // Anything later is fixed from the dose list below.
-          action: SnackBarAction(
-            label: 'Undo',
-            onPressed: () async {
-              await repo.deleteDose(doseId);
-              invalidateMedData(ref);
-            },
-          ),
-        ),
-      );
-  }
-
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final intake = ref.watch(medIntakeProvider);
@@ -74,6 +52,11 @@ class MedsScreen extends ConsumerWidget {
       appBar: AppBar(
         title: const Text('Medications'),
         actions: [
+          IconButton(
+            tooltip: 'Calendar',
+            onPressed: () => context.push('/meds/calendar'),
+            icon: const Icon(Icons.calendar_month_outlined),
+          ),
           IconButton(
             tooltip: 'Add',
             onPressed: () => _edit(context, ref),
@@ -122,7 +105,7 @@ class MedsScreen extends ConsumerWidget {
                   intake: i,
                   onTap: () => _edit(context, ref, existing: i.med),
                   onLog: i.med.active
-                      ? () => _logDose(context, ref, i.med)
+                      ? () => recordDoseWithUndo(context, ref, i.med)
                       : null,
                 ),
                 Gap.h8,
@@ -254,7 +237,9 @@ class _RecentDoses extends ConsumerWidget {
 
         return SageSection(
           title: 'Recent doses',
-          hint: 'Tap one to remove it if it was recorded by mistake.',
+          hint:
+              'Tap one to remove it if it was recorded by mistake. You can undo '
+              'straight away.',
           child: Column(
             children: [
               for (final d in list.take(15))
@@ -263,10 +248,12 @@ class _RecentDoses extends ConsumerWidget {
                   borderRadius: Radii.sm,
                   child: InkWell(
                     borderRadius: Radii.sm,
-                    onTap: () async {
-                      await ref.read(medsRepositoryProvider).deleteDose(d.id);
-                      invalidateMedData(ref);
-                    },
+                    onTap: () => deleteDoseWithUndo(
+                      context,
+                      ref,
+                      d,
+                      names[d.medId] ?? 'Medication',
+                    ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 12,

@@ -6,13 +6,16 @@ import 'package:sage/core/brand_palette.dart';
 import 'package:sage/core/sage_theme.dart';
 import 'package:sage/data/db/sage_database.dart';
 import 'package:sage/data/models/episode.dart';
+import 'package:sage/data/models/med.dart';
 import 'package:sage/data/repositories/episode_repository.dart';
+import 'package:sage/data/repositories/meds_repository.dart';
 import 'package:sage/data/settings/cycle_tracking.dart';
 import 'package:sage/features/backup/backup_screen.dart';
 import 'package:sage/features/daily/daily_log_screen.dart';
 import 'package:sage/features/export/export_screen.dart';
 import 'package:sage/features/guidance/guidance_screen.dart';
 import 'package:sage/features/history/history_screen.dart';
+import 'package:sage/features/meds/med_calendar_screen.dart';
 import 'package:sage/features/meds/meds_screen.dart';
 import 'package:sage/features/patterns/patterns_screen.dart';
 import 'package:sage/features/today/today_screen.dart';
@@ -73,9 +76,51 @@ void main() {
       );
     }
     await repo.startNow(EpisodeKind.migraine);
+
+    // A medication with doses on several days, including two on one day, so
+    // Today's medication card and the calendar's markers and count badge all
+    // render. Without any, both fall through to their empty states.
+    final meds = MedsRepository(db);
+    final medId = await meds.create(
+      name: 'A medication with a long enough name to wrap',
+      doseText: 'two at onset',
+      kind: MedKind.rescue,
+      monthlyLimitDays: 10,
+    );
+    await meds.create(name: 'Daily', kind: MedKind.preventive);
+    for (final d in [0, 1, 1, 3]) {
+      await meds.recordDose(
+        medId,
+        at: DateTime.now().subtract(Duration(days: d, minutes: 1)),
+      );
+    }
   });
 
   tearDown(() => db.close());
+
+  /// Lets database work finish, then renders the result.
+  ///
+  /// sqflite runs its queries on a real background isolate, and `pump` only
+  /// advances the test's fake clock, so no amount of pumping completes a query.
+  /// `runAsync` gives real time for the query to land, and the pump after it
+  /// builds the frame that uses the result. Repeated because some screens
+  /// load in stages (a provider that depends on another).
+  Future<void> settle(WidgetTester tester) async {
+    for (var i = 0; i < 20; i++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 30)),
+      );
+      await tester.pump();
+      if (find.byType(CircularProgressIndicator).evaluate().isEmpty) {
+        // One more round, for anything that started loading on that frame.
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 30)),
+        );
+        await tester.pump();
+        return;
+      }
+    }
+  }
 
   Widget wrap(Widget child, {required double textScale}) {
     return ProviderScope(
@@ -111,6 +156,7 @@ void main() {
     'Export': const ExportScreen(),
     'Backup': const BackupScreen(),
     'Medications': const MedsScreen(),
+    'Medication calendar': const MedCalendarScreen(),
   };
 
   // 320x640 is the narrowest Android still ships. 2.0 is the top of the
@@ -126,10 +172,19 @@ void main() {
             addTearDown(tester.view.reset);
 
             await tester.pumpWidget(wrap(entry.value, textScale: scale));
-            // Two pumps: the first frame is the loading state for every screen
-            // that reads the database.
-            await tester.pump();
-            await tester.pump(const Duration(milliseconds: 100));
+            await settle(tester);
+
+            // Without this the suite passes while measuring a spinner. That
+            // is what it did from Phase 7 until Phase 12: under the test's
+            // fake clock, `pump(100ms)` never lets a database query finish,
+            // so every data-backed screen was checked in its loading state.
+            expect(
+              find.byType(CircularProgressIndicator),
+              findsNothing,
+              reason:
+                  '${entry.key} was still loading, so its real layout '
+                  'was never measured',
+            );
 
             expect(
               tester.takeException(),

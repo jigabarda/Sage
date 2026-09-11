@@ -666,6 +666,60 @@ Decide before the phase that needs them:
 | 3 — Correlation engine | **Built.** Branch `phase-3-correlation`. |
 | 4 — Online assistant | Deferred by decision; may never be built |
 
+### What Phase 12 added
+
+- `MedCalendarScreen`: a month grid of medication intake. A marked cell
+  means a dose that day, and a number means more than one. Tap a day to see its
+  doses, remove one, or record a dose taken earlier that day.
+- `MedQuickLog` on Today, for one-tap dose recording. Medication had only
+  been reachable through Settings, the wrong place for something done daily,
+  and during an attack in the case of rescue medication. It shows nothing at
+  all when no medications exist, so Today never nags someone in pain.
+- `core/calendar_month.dart`: the grid arithmetic, pure and tested.
+- `dose_actions.dart`: record and remove with Undo, shared by every
+  logger so they behave the same.
+
+**A calendar cell makes no judgement.** There is no colour for "too much" and
+none for "good". The limit belongs to the person and is counted over a rolling
+30 days on the Medications screen. A calendar month is the wrong window for
+that anyway, because it resets on the 1st and physiology does not. The marker is
+the accent colour, which is the brand, not a status.
+
+**The first day of the week comes from the locale.** It is Sunday in the
+Philippines and Monday across most of Europe. The grid and its header both
+read `MaterialLocalizations.firstDayOfWeekIndex`. The leading-blank arithmetic
+is tested exhaustively over a year for both conventions, since an off-by-one
+there shifts every date under the wrong weekday.
+
+**Undo on removal restores the original row**, with its id, time and episode
+link, rather than recording a new dose, which would silently unlink it from
+the episode it was taken for. If that episode was deleted in between, the dose
+comes back unlinked instead of failing on the foreign key.
+
+A dose cannot be recorded in the future, and the calendar does not browse past
+the current month.
+
+#### The layout suite had been measuring spinners
+
+The calendar's query was still running when its layout test ended, which
+surfaced a harness bug dating back to Phase 7. sqflite queries run on a real
+background isolate, and `pump` only advances the test's fake clock, so no
+data-backed screen ever finished loading in the suite. Every one was measured
+in its loading state.
+
+`test/layout_test.dart` now calls `settle()`, which gives real time through
+`runAsync` and then pumps, and **asserts no spinner remains** before checking
+for overflow. That keeps the suite from quietly slipping back.
+
+Measuring real screens found three overflows straight away:
+
+- **History at 2x text, both widths.** The episode-kind label sat in a `Row`
+  without `Flexible` and ran 47px past the edge. It now wraps.
+- **Export at 320dp, 2x text.** The notice and the button row were fixed
+  height with the preview in an `Expanded` between them, and on a small phone
+  the fixed parts alone were taller than the screen. The notice now scrolls
+  with the preview, and only the buttons stay pinned.
+
 ### What Phase 11 added
 
 Asked for directly: someone using the app wants to track medication intake in
@@ -865,6 +919,13 @@ test rather than a manual pass.
 Before trusting a layout suite, confirm it can fail: a deliberate `Row` of two
 500dp boxes at 320dp was checked to produce `A RenderFlex overflowed by 680
 pixels`. A green suite that cannot go red is worse than no suite.
+
+> **Correction, Phase 12.** That check proved the suite could *detect* an
+> overflow. It did not prove the screens had loaded. Under `testWidgets`' fake
+> clock, sqflite's queries run on a real isolate and never complete inside
+> `pump`, so every database-backed screen was measured showing its spinner.
+> From Phase 7 to Phase 12 the suite genuinely covered only the static
+> screens. Fixed in Phase 12, and it found three real overflows immediately.
 
 The icon is vector-only — an adaptive icon plus an Android 13 monochrome layer,
 no bitmap at any density. AGP renames resources in the release APK
@@ -1089,6 +1150,7 @@ Three rules encoded in code that are easy to undo by accident:
 | 9 — Medications | **Built.** Branch `phase-9-medications`. |
 | 10 — Cycle tracking | **Built.** Branch `phase-10-cycle`. |
 | 11 — Medication intake | **Built.** Branch `phase-11-intake`. Schema v2. |
+| 12 — Medication calendar | **Built.** Branch `phase-12-med-calendar`. |
 
 ### What Phase 0 actually laid down
 
